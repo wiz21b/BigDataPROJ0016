@@ -1,6 +1,9 @@
 import csv
 import urllib.request
 from collections import namedtuple
+
+# If you don't have this, run "pip install tabulate"
+
 from tabulate import tabulate
 
 
