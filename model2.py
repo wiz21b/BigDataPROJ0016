@@ -14,7 +14,7 @@ NUM_CUMULATIVE_HOSPITALIZATIONS = 3
 NUM_CRITICAL = 4
 NUM_FATALITIES = 5
 
-INITIAL_POP = 100
+INITIAL_POP = 200
 
 def model(initial_conds, params, days=10):
 
@@ -25,7 +25,7 @@ def model(initial_conds, params, days=10):
 
     alpha, beta, gamma1, _  = params
 
-    for day in range(days):
+    for day in range(days-1):
 
         s, i, h = values
 
@@ -65,33 +65,46 @@ def error(values, observations):
 
 def gafunc( params):
     # Plumbing function to run the GA algo
-    global observations
+    global learning_set
+
+    nb_observations = len(learning_set[0])
 
     i_start, h_start, alpha, beta, gamma1, gamma2 = params
 
-    v = np.array(model([INITIAL_POP, i_start, h_start], [alpha, beta, gamma1, gamma2], len(rows)-1)).transpose()
-    e = error(v, observations)
+    v = np.array(model([INITIAL_POP, i_start, h_start], [alpha, beta, gamma1, gamma2], nb_observations)).transpose()
+    e = error(v, learning_set)
 
     return e
 
 
 headers, observations, rows = load_data()
 print(tabulate(observations, headers=headers))
+
+# Each row is the different values of a model's value (i,r,h,...)
+OBS_LENGTH=len(observations)
 observations = np.array(rows).transpose()
+
+LS_LENGTH=12
+learning_set = np.array(rows[0:LS_LENGTH]).transpose()
+
 
 varbound=np.array([[0,5],[1,2],[0.01,0.5],[0.01,0.5],[0.01,0.5],[0.2,0.5]])
 gamodel = ga( function=gafunc, dimension=6,variable_type='real',variable_boundaries=varbound)
 gamodel.run()
 
-print( gamodel.output_dict)
 
 i_start, h_start, alpha, beta, gamma1, gamma2 = gamodel.output_dict['variable']
 best_v = np.array(model([INITIAL_POP, i_start, h_start], [alpha, beta, gamma1, gamma2], len(rows)*4)).transpose()
 
-plt.plot(best_v[1], label="Positive model")
-plt.plot(observations[NUM_POSITIVE], label="Positive real")
-plt.plot(best_v[2], label="Hospitalized model")
-plt.plot(observations[NUM_HOSPITALIZED], label="Hospitalized real")
+
+plt.plot(learning_set[NUM_POSITIVE], color="darkorange", linestyle="--", label="Positive (training)")
+plt.plot(range(LS_LENGTH-1, OBS_LENGTH), observations[NUM_POSITIVE][LS_LENGTH-1:OBS_LENGTH], label="Positive (real)", color="darkorange")
+plt.plot(best_v[NUM_POSITIVE], label="Positive (model)", color="darkorange", linestyle=":")
+
+plt.plot(learning_set[NUM_HOSPITALIZED], color="red", linestyle="--", label="Hospitalized (training)")
+plt.plot(range(LS_LENGTH-1, OBS_LENGTH), observations[NUM_HOSPITALIZED][LS_LENGTH-1:OBS_LENGTH], label="Hospitalized (real)", color="red")
+plt.plot(best_v[2], label="Hospitalized (model)", color="red", linestyle=":")
+
 #plt.plot(best_v[0])
 plt.legend()
 plt.ylabel('Individuals')
