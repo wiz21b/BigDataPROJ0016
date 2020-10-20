@@ -1,4 +1,4 @@
-
+from copy import copy
 import numpy as np
 from matplotlib import pyplot as plt
 # pip3 install tabulate
@@ -16,14 +16,14 @@ NUM_FATALITIES = 5
 
 INITIAL_POP = 100
 
-def model(values, params, days=10):
+def model(initial_conds, params, days=10):
 
+    INITIAL_POP = initial_conds[0]
+
+    values = copy(initial_conds)
     days_data = [values]
 
-    initial_pop = values[0]
-    alpha = params[0]
-    beta = params[1]
-    gamma1 = params[2]
+    alpha, beta, gamma1, _  = params
 
     for day in range(days):
 
@@ -33,7 +33,7 @@ def model(values, params, days=10):
         # i = infected
         # h = hospitalised
 
-        ds = -alpha*(s/initial_pop)*i
+        ds = -alpha*(s/INITIAL_POP)*i
         di = -ds - beta*i
         dh = +beta*i - gamma1*h
 
@@ -96,4 +96,5 @@ plt.plot(observations[NUM_HOSPITALIZED], label="Hospitalized real")
 plt.legend()
 plt.ylabel('Individuals')
 plt.xlabel('Days')
+plt.title(f'GA Simulation (population={INITIAL_POP})')
 plt.show()
