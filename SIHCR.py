@@ -45,9 +45,32 @@ NUM_CRITICAL = 4
 NUM_FATALITIES = 5
 N = 1000000
 
+
+# %    Day} : the day the data below was collected
+# %    num\_positive :  number of individuals tested positive on this day.
+# %    num\_hospitalised :  number of individuals currently at the hospital.
+# %    num\_cumulative\_hospitalizations} : cumulative number of individuals who %were or are being hospitalized.
+# %    num\_critical :  number of individuals currently in an ICU (criticals are %not counted as part of \texttt{num\_hospitalized}).
+# %    num\_fatalities :  cumulative number of deaths.
+
 def SIHCR_model(y, t, gamma1, gamma2, gamma3, beta, tau, delta):
     S, I, H, C, R = y
 
+    # Vu que le modèle ne fait que des liens simples ( on sait passer de S --> I et de I --> H mais pas 
+    # de S --> H), on est onligé de si on est infecté de passer pas la case I. Et donc le cumul de num_positif
+    # nous donne le nombre totaux de personnes positives au covid. Donc si on utilise cumulH / cumul_num_positif,
+    # on a un ratio qui représente le nombre de personnes qui ont eu le covid et qui sont passée sur 
+    # un lit d'hopital. ( tau )
+
+    # nombre de gens qui sont sortis de l'hospital total Rsurvivants
+    # = num_cumulative_hospitalizations - num_hospitalised - num_critical - num_fatalities
+    
+    # S --> I --> H --> C --> F
+    
+    # nombre total R = cumul_num_positif - num_cumulative_hospitalizations + Rsurvivants
+    # 19 qui ont ete hospitalisée dont 10 qui sont toujours hospitalisée, 4 qui sont en critique, 0 en fatalities
+    # donc 9 plus dans H donc on a 5 qui sont sortie de l'hopital et immunisée ( les Rsurvivants)
+    
     dSdt = -beta * S * I / N
     dIdt = beta * S * I / N - gamma1 * I - tau * I
     dHdt = tau * I - gamma2 * H - delta * H
