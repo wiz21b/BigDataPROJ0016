@@ -184,27 +184,85 @@ class Sarah1(Model):
     def _SIHCR_model(self, y, t, gamma1, gamma2, gamma3, beta, tau, delta):
         S, I, H, C, R = y
 
-        # Vu que le modèle ne fait que des liens simples ( on sait
-        # passer de S --> I et de I --> H mais pas de S --> H), on est
-        # onligé de si on est infecté de passer pas la case I. Et donc
-        # le cumul de num_positif nous donne le nombre totaux de
-        # personnes positives au covid. Donc si on utilise cumulH /
-        # cumul_num_positif, on a un ratio qui représente le nombre de
-        # personnes qui ont eu le covid et qui sont passée sur un lit
-        # d'hopital. ( tau )
+        # Modèle SIHCR
+        # Liens et paramètres:
+        # S -> I : - (beta * S * I )/ N
+        # I <- S : (beta * S * I )/ N
+        # I -> R : - gamma1 * I |&| I -> H : - tau * I
+        # H <- I : tau * I
+        # H -> R : - gamma2 * H |&| H -> C : - delta * H
+        # C <- H : delta * H
+        # C -> R : - gamma3 * C
+        # R <- I : gamma1 * R |&| R <- H : gamma2 * H |&| R <- C : gamma3 * C
 
-        # nombre de gens qui sont sortis de l'hospital total
-        # Rsurvivants = num_cumulative_hospitalizations -
-        # num_hospitalised - num_critical - num_fatalities
+        # Interprétations selon NOTRE modèle:
 
-        # S --> I --> H --> C --> F
+        # Notre modèle ne fait que des liens simples ( S -> I -> H -> C ).
+        # Dans celui-ci, la somme des "num_positive" nous donne le total des
+        # gens qui ont été infectés par le covid, "num_cumulative_positive".
 
-        # nombre total R = cumul_num_positif -
-        # num_cumulative_hospitalizations + Rsurvivants 19 qui ont ete
-        # hospitalisée dont 10 qui sont toujours hospitalisée, 4 qui
-        # sont en critique, 0 en fatalities donc 9 plus dans H donc on
-        # a 5 qui sont sortie de l'hopital et immunisée ( les
-        # Rsurvivants)
+        # Si on calcule:
+        # "num_cumulative_hospitalizations / num_cumulative_positive"
+        # Ceci nous donne la proportions de gens infectés qui ont étés admis
+        # à l'hopital. On a donc une première approximation du paramètre "tau"
+        # qui représente le taux de transition des personnes infectées vèrs
+        # l'hopital.
+
+        # Puisque notre modèle ne considère pas que le gens meurent du virus
+        # on peut connaitre à tout temps le nombre total de personnes qui se
+        # sont rétablies en étant soit à l'hopital soit en soins intesifs.
+        # Appelons ces persones "R_survivants".
+        # R_survivants = num_cumulative_hospitalizations - num_hospitalised
+        #                                                - num_critical
+
+
+        # A chaque temps t on sait dans déterminer combien de personnes sortent
+        # SOIT des soins intensifs SOIT de l'hopital, appelons cela "R_out_HC".
+        # Pour cela il suffit de calculer:
+        # "R_out_HC(t) = R_survivants(t) - R_survivants(t-1)"
+
+        # "R_out_HC" corresponds, dans notre système d'équations, à:
+        # "R_out_HC = gamma2 * H + gamma3 * C"
+        # Ceci nous fournit donc une contrainte supplémentaire pouvant nous
+        # permettre d'avoir une meilleure estimation des paramètres "gamma2"
+        # ainsi que "gamma3".
+        # TO THINK/DISCUSS: Comment intégrer cette équation? Elle ne doit pas
+        # rentrer dans le modèle puisqu'il se fait intégrer. Peut-être quelque
+        # part dans la fonction qui calcule l'erreur.
+
+        # On ne peut par contre pas connaitre exactement le nombre de personne
+        # faisant partie de la catégorie R à chaque instant. En effet, écrire
+        # "R = num_cumulative_positive - num_cumulative_hospitalizations
+        #                              + R_survivants"
+        # serait inexacte. Cela reviendrait à considérer que les personnes
+        # infectées guériraient du virus instantanément. Si l'on connaissait
+        # le temps qu'il faut à une personne infectée pour devenir "saine" et
+        # qu'on appelle cela "time_IR" on pourrait alors plus ou moins avoir
+        # une estimation de R en écrivant:
+        # "R(t) = num_cumulative_positive(t-time_IR)
+        #                       - num_cumulative_hospitalizations(t)
+        #                       + R_survivants(t)"
+        # Car les personnes qui sont sorties de la catégorie I pour aller
+        # dans la catégorie R au temps t vaut
+        # "num_cumulative_positive(t-time_IR)
+        # car les seulent personnes déclarées positives ces time_IR derniers
+        # jours sont considérées comme encore infectées.
+
+        # Note: R_cummul = R puisqu'une fois dans la catégorie R on y reste.
+        # Donc R a déjà une notion de cummul.
+
+        # Au temps t on a "num_positive" nouveaux cas mais on a réellement
+        # "num_positive / sensitivity" nouveaux cas.
+        # Pour l'instant dans le modèle, les gens sont susceptibles d'être
+        # infectés non pas seulement par les gens qui sont actuellement
+        # infectés et detectés mais aussi par ceux qui sont infectés et qui
+        # n'ont pas été détectés.
+
+        # Dans le futur, si jamais on nous indique un nombre d'occupation
+        # maximal dans les hopitaux ou en soins intensifs, il faudra surement
+        # le prendre en compte dans les équations car si tous les lits sont
+        # occupés, personnes ne pourra donc se déplacer vers la catégorie
+        # dans laquelle il manque de la place.
 
         N = self._N
 
@@ -213,6 +271,32 @@ class Sarah1(Model):
         dHdt = tau * I - gamma2 * H - delta * H
         dCdt = delta * H - gamma3 * C
         dRdt = gamma1 * I + gamma2 * H + gamma3 * C
+
+        # Si jamais on voulait considérer un système comprenant un temps
+        # d'incubation.
+
+        # Modèle SEIHCR
+        # Liens et paramètres:
+        # S -> E : - (beta * S * I )/ N
+        # E <- S : (beta * S * I )/ N
+        # E -> I : - sigma * E
+        # I <- E : sigma * E
+        # I -> R : - gamma1 * I |&| I -> H : - tau * I
+        # H <- I : tau * I
+        # H -> R : - gamma2 * H |&| H -> C : - delta * H
+        # C <- H : delta * H
+        # C -> R : - gamma3 * C
+        # R <- I : gamma1 * R |&| R <- H : gamma2 * H |&| R <- C : gamma3 *
+
+        # Le système d'équations serait le suivant:
+        """
+        dSdt = -beta * S * I / N
+        dEdt = beta * S * I / N - sigma * E
+        dIdt = sigma * E - gamma1 * I - tau * I
+        dHdt = tau * I - gamma2 * H - delta * H
+        dCdt = delta * H - gamma3 * C
+        dRdt = gamma1 * I + gamma2 * H + gamma3 * C
+        """
         return [dSdt, dIdt, dHdt, dCdt, dRdt]
 
     def _plumb(self, params, days, error_func):
