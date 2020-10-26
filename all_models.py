@@ -9,7 +9,7 @@ from utils import ObsRow, Model, residuals_error, load_data
 
 def mean_square_error(results, observations):
     d = results - observations
-    return np.sum(d*d)
+    return np.sum(np.abs(d))
 
 
 class Stefan(Model):
@@ -18,10 +18,10 @@ class Stefan(Model):
         self._observations = observations
         self._fit_params = None
 
-        nb_observations = observations.shape[0]
+        self._nb_observations = observations.shape[0]
 
         self._observations = observations[
-            np.ix_(range(nb_observations),
+            np.ix_(range(self._nb_observations),
                    [ObsRow.CUMULATIVE_POSITIVE.value,
                     ObsRow.CUMULATIVE_HOSPITALIZATIONS.value,
                     ObsRow.CRITICAL.value])]
@@ -30,11 +30,9 @@ class Stefan(Model):
         self._error_func = error_func
         z = opt_minimize(
             self._pfunc,
-            [2, 1, 0.2, 0.2, 0.2, 0.2],
-            method='L-BFGS-B',
-            bounds=[[0,5],[1,1],[0.01,2],[0.01,2],[0.2,2],[0.01,2]],
+            [1, 1, 1, 1, 0.2, 0.2],
+            bounds=[[0,200],[1,20],[0.001,5],[0.001,10],[0.001,10],[0.01,10]],
             options={'disp': True})
-        print(z.x)
 
         i_start, h_start, alpha, beta, gamma1, gamma2 = z.x
         c_start = 0
@@ -44,6 +42,8 @@ class Stefan(Model):
 
     def predict(self, days):
         i_start, h_start, alpha, beta, gamma1, gamma2, c_start = self._fit_params
+
+        print(self._fit_params)
 
         res = self._predict(
             [self._N, i_start, h_start, c_start],
@@ -64,24 +64,35 @@ class Stefan(Model):
 
         for day in range(days-1):
 
-            s, i, h, c = values
-
             # s = suscpetible (ie not yet infected)
             # i = infected
             # h = hospitalised
             # c = critical
 
-            s_to_i = alpha*(s/INITIAL_POP)*i
+            s, i, h, c = values
+
+            #print(f"{alpha} {i} {s}")
+            s_to_i = alpha*i # This screws the minimizer completely : *(s/INITIAL_POP)
+
+            print(f"{day}\t{s_to_i}, i={i}, s={s}")
 
             ds = - s_to_i
             di = + s_to_i - beta*i
             dh = + beta*i - gamma1*h
             dc = + gamma1*h - gamma2*h
 
-            s = max(0, s+ds)
-            i = max(0, i+di)
-            h = max(0, h+dh)
-            c = max(0, c+dc)
+            # if s + ds < 0:
+            #     print("s too small")
+
+            # s = max(0, s+ds)
+            # i = max(0, i+di)
+            # h = max(0, h+dh)
+            # c = max(0, c+dc)
+
+            s = s+ds
+            i = i+di
+            h = h+dh
+            c = c+dc
 
             values = [s, i, h, c]
 
@@ -91,7 +102,6 @@ class Stefan(Model):
 
     def _pfunc(self, params):
         # Plumbing function to run the optimizer
-        nb_observations = self._observations.shape[0]
 
         i_start, h_start, alpha, beta, gamma1, gamma2 = params
         c_start = 0
@@ -99,10 +109,12 @@ class Stefan(Model):
         v = self._predict(
                 [self._N, i_start, h_start, c_start],
                 [alpha, beta, gamma1, gamma2],
-                nb_observations)
+                self._nb_observations)
 
         # We have no basis to compare S(suspect) to...
+
         e = self._error_func(v[:, 1:4], self._observations)
+        #e = self._error_func(v[:, 1], self._observations[:, 0])
 
         return e
 
@@ -120,7 +132,7 @@ class Sarah1(Model):
                    [ObsRow.POSITIVE.value, ObsRow.HOSPITALIZED.value,
                     ObsRow.CRITICAL.value])]
 
-        I0 = self._observations[0][0]
+        I0 = 5 # self._observations[0][0]
         H0 = self._observations[0][1]
         C0 = self._observations[0][2]
         R0 = 0
@@ -230,7 +242,8 @@ if __name__ == "__main__":
 
     # m = Stefan(rows, 10000)
     # m.fit_parameters(mean_square_error)
-    # res_ndx, res = m.predict(100)
+    # res_ndx, res = m.predict(20)
+    # res_dict = dict(zip(res_ndx, range(len(res_ndx))))
     # for t in [ObsRow.CUMULATIVE_POSITIVE, ObsRow.CUMULATIVE_HOSPITALIZATIONS]:
     #     plt.plot(res[:, res_dict[t]], label=f"{t} (model)")
     #     plt.plot(rows[:, t.value], label=f"{t} (real)")
@@ -244,7 +257,7 @@ if __name__ == "__main__":
 
     ms = Sarah1(rows, 1000000)
     ms.fit_parameters(residuals_error)
-    sres_ndx, sres = ms.predict(50)
+    sres_ndx, sres = ms.predict(30)
 
     res_dict = dict(zip(sres_ndx, range(len(sres_ndx))))
 
