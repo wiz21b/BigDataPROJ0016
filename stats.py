@@ -13,15 +13,11 @@ if __name__ == "__main__":
 
     x = rows[ObsRow.DAYS.value]
 
-
-
     for t in [ObsRow.CUMULATIVE_POSITIVE,
               ObsRow.CUMULATIVE_TESTED,
               ObsRow.HOSPITALIZED]:
 
         plt.plot(np.log(rows[t.value]) / np.log(2), label=f"{t}", color=ObsRow.color(t))
-
-
         y = np.log(rows[t.value]) / np.log(2)
         y[0] = 0
         coef = np.polyfit(x,y,1)
@@ -32,7 +28,8 @@ if __name__ == "__main__":
     plt.xlabel('Days')
     plt.ylabel(r'$log_2(Individuals)$')
     plt.legend()
-    plt.show()
+    #plt.show()
+    plt.savefig('log_plot.pdf')
 
 
 
@@ -47,7 +44,8 @@ if __name__ == "__main__":
     plt.xlabel('Days')
     plt.ylabel('Individuals')
     plt.legend()
-    plt.show()
+    #plt.show()
+    plt.savefig('linear_plot.pdf')
 
 
     # --------------------------------------------------------
@@ -57,4 +55,23 @@ if __name__ == "__main__":
     plt.xlabel('Days')
     plt.ylabel('Ratio')
     plt.legend()
+    plt.savefig('tested_positive_ratio.pdf')
+
+
+    # --------------------------------------------------------
+    plt.figure()
+    a = rows[ObsRow.CUMULATIVE_POSITIVE.value]
+    b = rows[ObsRow.HOSPITALIZED.value]
+    plt.plot(a / b, label=f"cumulative positive/hospitalized ratio")
+    a = rows[ObsRow.CUMULATIVE_TESTED.value]
+    b = rows[ObsRow.HOSPITALIZED.value]
+    plt.plot(a / b, label=f"cumulative tested/hospitalized ratio")
+
+    plt.plot(rows[ObsRow.CUMULATIVE_POSITIVE.value] / rows[ObsRow.CUMULATIVE_TESTED.value], label=f"cumulative positive/tested ratio")
+
+    plt.xlabel('Days')
+    plt.ylabel('Ratio')
+    plt.legend()
+    plt.savefig('hospitalized_ratio.pdf')
+
     plt.show()
