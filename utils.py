@@ -10,15 +10,16 @@ class ObsRow(Enum):
 
     DAYS = 0
     POSITIVE = 1
-    HOSPITALIZED = 2
-    CUMULATIVE_HOSPITALIZATIONS = 3
-    CRITICAL = 4
-    FATALITIES = 5
+    TESTED = 2
+    HOSPITALIZED = 3
+    CUMULATIVE_HOSPITALIZATIONS = 4
+    CRITICAL = 5
+    FATALITIES = 6
 
     # Other data series we work on
-    CUMULATIVE_POSITIVE = 6
-    RECOVERED = 7
-    SUSPECT = 8
+    CUMULATIVE_POSITIVE = 7
+    RECOVERED = 8
+    SUSPECT = 9
 
     def __str__(self):
         return self.name.replace("_", " ").lower()

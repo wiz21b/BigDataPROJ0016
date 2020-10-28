@@ -132,7 +132,7 @@ class Sarah1(Model):
                    [ObsRow.POSITIVE.value, ObsRow.HOSPITALIZED.value,
                     ObsRow.CRITICAL.value])]
 
-        I0 = 5 # self._observations[0][0]
+        I0 = 1 # self._observations[0][0]
         H0 = self._observations[0][1]
         C0 = self._observations[0][2]
         R0 = 0
@@ -144,20 +144,27 @@ class Sarah1(Model):
         self._fit_params = None
 
     def fit_parameters(self, error_func):
-        gamma1 = 0.02
+        gamma1 = (1/10 + 1/5)/2
         gamma2 = 0.02
         gamma3 = 0.02
-        beta = 1.14
-        tau = 0.02
-        delta = 0.02
+        beta = 0.14
+
+        num_cumulative_positiv = np.sum(self._observations[:, 0])
+
+        print(f"num_cumulative_positiv {num_cumulative_positiv}")
+        print(self._observations[:, 0])
+
+        tau = 28/num_cumulative_positiv
+
+        delta = 5/18
 
         params = Parameters()
-        params.add('gamma1', value=gamma1, min=0, max=5)
+        params.add('gamma1', value=gamma1, min=1/10, max=1/5)
         params.add('gamma2', value=gamma2, min=0, max=5)
         params.add('gamma3', value=gamma3, min=0, max=5)
-        params.add('beta', value=beta, min=0, max=5)
-        params.add('tau', value=tau, min=0, max=5)
-        params.add('delta', value=delta, min=0, max=5)
+        params.add('beta', value=beta, min=0.01, max=0.5)
+        params.add('tau', value=tau, min=tau*0.8, max=tau*1.2)
+        params.add('delta', value=delta, min=0.6*delta, max=1.4*delta)
 
         result = minimize(self._plumb,
                           params,
@@ -228,7 +235,7 @@ class Sarah1(Model):
         #                                                - num_critical
 
 
-        # A chaque temps t on sait dans déterminer combien de personnes sortent
+        # À chaque temps t on sait dans déterminer combien de personnes sortent
         # SOIT des soins intensifs SOIT de l'hopital, appelons cela "R_out_HC".
         # Pour cela il suffit de calculer:
         # "R_out_HC(t) = R_survivants(t) - R_survivants(t-1)"
@@ -278,7 +285,7 @@ class Sarah1(Model):
 
         N = self._N
 
-        dSdt = -beta * S * I / N
+        dSdt = -(beta * I) * (S / N)
         dIdt = beta * S * I / N - gamma1 * I - tau * I
         dHdt = tau * I - gamma2 * H - delta * H
         dCdt = delta * H - gamma3 * C
