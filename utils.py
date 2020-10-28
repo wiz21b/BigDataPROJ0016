@@ -1,7 +1,12 @@
+from __future__ import annotations
 from enum import Enum
 import csv
 from collections import namedtuple
 import urllib.request
+
+COLORS = ['red','green','blue','magenta','purple',
+          'lime','orange','chocolate','gray',
+          'darkgreen', 'darkviolet']
 
 
 class ObsRow(Enum):
@@ -9,20 +14,41 @@ class ObsRow(Enum):
     # Do not change them
 
     DAYS = 0
+
+    # number of individuals tested positive on this day.
     POSITIVE = 1
+
+    # number of tests performed during the last day.
     TESTED = 2
+
+    # number of individuals currently at the hospital.
     HOSPITALIZED = 3
+
+    # cumulative number of individuals who were or are
+    # being hospitalized.
     CUMULATIVE_HOSPITALIZATIONS = 4
+
+    # number of individuals currently in an ICU (criticals
+    # are not counted as part of num_hospitalized).
     CRITICAL = 5
+
+    # cumulative number of deaths
     FATALITIES = 6
 
-    # Other data series we work on
+    # Other data series we add to the dataset
     CUMULATIVE_POSITIVE = 7
-    RECOVERED = 8
-    SUSPECT = 9
+    CUMULATIVE_TESTED = 8
+
+    # Other data not in the dataset
+    RECOVERED = 9
+    SUSPECT = 10
 
     def __str__(self):
         return self.name.replace("_", " ").lower()
+
+    @staticmethod
+    def color( t: ObsRow):
+        return COLORS[t.value]
 
 
 class Model:
@@ -65,6 +91,7 @@ def load_data():
     observations = []
     rows = []
     positive_cumulated = 0
+    tested_cumulated = 0
 
     with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/data.csv") as fp:
 
@@ -81,6 +108,7 @@ def load_data():
                 observations.append(t)
 
                 positive_cumulated += t.num_positive
-                rows.append(ir + [positive_cumulated])
+                tested_cumulated += t.num_tested
+                rows.append(ir + [positive_cumulated, tested_cumulated])
 
     return head, observations, rows
