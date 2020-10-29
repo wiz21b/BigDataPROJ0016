@@ -322,6 +322,17 @@ class Sarah1(Model):
         return [dSdt, dIdt, dHdt, dCdt, dRdt]
 
     def _plumb(self, params, days, error_func):
+
+        # The plumb function is here to connect two worlds.
+        # The world of our own model and the world
+        # of the optimizer (lmfit, scipy, etc.).
+        # There should be one plumb function per optimizer.
+        # The plumb function translates calls from the
+        # optimizer to calls to our own functions.
+        # It adds a level of redirection to be able to
+        # change the optimizer without having to rewrite
+        # our model.
+
         res = self._predict(self._initial_conditions, days, params)
 
         rselect = np.ix_(range(res.shape[0]), [1, 2, 3])
