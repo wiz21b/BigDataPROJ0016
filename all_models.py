@@ -335,6 +335,16 @@ class Sarah1(Model):
 
         res = self._predict(self._initial_conditions, days, params)
 
+        # Our prediction function predicts different values
+        # However, not all these values can be compared to
+        # real data. The code below actually selects the
+        # values we want to compare to real data.
+        # The real data are stored in self._observations
+        # which is only containing a subset of the actual
+        # data. Our model predicts more than that so we
+        # take onyl the subset of our predictions.
+
+        # Pick full columns of indices 1,2,3.
         rselect = np.ix_(range(res.shape[0]), [1, 2, 3])
 
         return error_func(res[rselect],
