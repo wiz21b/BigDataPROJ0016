@@ -491,8 +491,8 @@ if __name__ == "__main__":
     plt.figure()
     for t in [ObsRow.CUMULATIVE_POSITIVE,
               ObsRow.CUMULATIVE_HOSPITALIZATIONS]:
-        plt.plot(sres[:, res_dict[t]], label=f"{t} (model)")
-        plt.plot(rows[:, t.value], label=f"{t} (real)")
+        plt.plot(sres[:, res_dict[t]], '--', color=ObsRow.color(t), label=f"{t} (model)")
+        plt.plot(rows[:, t.value], color=ObsRow.color(t), label=f"{t} (real)")
 
     plt.title('LM fit')
     plt.xlabel('Days')
@@ -512,8 +512,8 @@ if __name__ == "__main__":
     plt.figure()
     for t in [ObsRow.CUMULATIVE_POSITIVE,
               ObsRow.CUMULATIVE_HOSPITALIZATIONS]:
-        plt.plot(sres[:, res_dict[t]], label=f"{t} (model)")
-        plt.plot(rows[:, t.value], label=f"{t} (real)")
+        plt.plot(sres[:, res_dict[t]], '--', color=ObsRow.color(t), label=f"{t} (model)")
+        plt.plot(rows[:, t.value], color=ObsRow.color(t), label=f"{t} (real)")
 
     plt.title('GA fit')
     plt.xlabel('Days')

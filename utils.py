@@ -4,8 +4,8 @@ import csv
 from collections import namedtuple
 import urllib.request
 
-COLORS = ['red','green','blue','magenta','purple',
-          'lime','orange','chocolate','gray',
+COLORS = ['red', 'green', 'blue', 'magenta', 'purple',
+          'lime', 'orange', 'chocolate', 'gray',
           'darkgreen', 'darkviolet']
 
 
@@ -47,7 +47,7 @@ class ObsRow(Enum):
         return self.name.replace("_", " ").lower()
 
     @staticmethod
-    def color( t: ObsRow):
+    def color(t: ObsRow):
         return COLORS[t.value]
 
 
