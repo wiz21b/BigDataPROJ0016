@@ -8,9 +8,8 @@ COLORS = ['red', 'green', 'blue', 'magenta', 'purple',
           'lime', 'orange', 'chocolate', 'gray',
           'darkgreen', 'darkviolet']
 
-
-class ObsRow(Enum):
-    # These 5 are the one provided by the teachers.
+class ObsEnum(Enum):
+     # These 5 are the one provided by the teachers.
     # Do not change them
 
     DAYS = 0
@@ -40,16 +39,29 @@ class ObsRow(Enum):
     CUMULATIVE_TESTED = 8
 
     # Other data not in the dataset
-    RECOVERED = 9
-    SUSPECT = 10
+    #RECOVERED = 9
+    #SUSPECT = 10
 
     def __str__(self):
         return self.name.replace("_", " ").lower()
-
+    
     @staticmethod
     def color(t: ObsRow):
         return COLORS[t.value]
 
+class StateEnum(Enum):
+    # These 5 are the one provided by the teachers.
+    # Do not change them
+
+    SUCEPTIBLE = 0
+    EXPOSED = 1
+    INFECTIOUS = 2
+    HOSPITALIZED = 3
+    CRITICAL = 4
+    RECOVERED = 5
+
+    def __str__(self):
+        return self.name.replace("_", " ").lower()
 
 class Model:
     def __init__(self, observations):

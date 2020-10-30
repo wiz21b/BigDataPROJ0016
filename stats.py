@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import ObsRow, Model, residuals_error, load_data
+from utils import ObsEnum, Model, residuals_error, load_data
 
 if __name__ == "__main__":
     head, observations, rows = load_data()
@@ -11,18 +11,18 @@ if __name__ == "__main__":
     print(head)
     print(rows)
 
-    x = rows[ObsRow.DAYS.value]
+    x = rows[ObsEnum.DAYS.value]
 
-    for t in [ObsRow.CUMULATIVE_POSITIVE,
-              ObsRow.CUMULATIVE_TESTED,
-              ObsRow.HOSPITALIZED]:
+    for t in [ObsEnum.CUMULATIVE_POSITIVE,
+              ObsEnum.CUMULATIVE_TESTED,
+              ObsEnum.HOSPITALIZED]:
 
-        plt.plot(np.log(rows[t.value]) / np.log(2), label=f"{t}", color=ObsRow.color(t))
+        plt.plot(np.log(rows[t.value]) / np.log(2), label=f"{t}", color=ObsEnum.color(t))
         y = np.log(rows[t.value]) / np.log(2)
         y[0] = 0
         coef = np.polyfit(x,y,1)
         poly1d_fn = np.poly1d(coef)
-        plt.plot(x,poly1d_fn(x),'--', color=ObsRow.color(t))
+        plt.plot(x,poly1d_fn(x),'--', color=ObsEnum.color(t))
 
 
     plt.xlabel('Days')
@@ -35,10 +35,10 @@ if __name__ == "__main__":
 
     # --------------------------------------------------------
     plt.figure()
-    for t in [ObsRow.CUMULATIVE_POSITIVE,
-              ObsRow.CUMULATIVE_TESTED,
-              ObsRow.HOSPITALIZED,
-              ObsRow.FATALITIES]:
+    for t in [ObsEnum.CUMULATIVE_POSITIVE,
+              ObsEnum.CUMULATIVE_TESTED,
+              ObsEnum.HOSPITALIZED,
+              ObsEnum.FATALITIES]:
         plt.plot(rows[t.value], label=f"{t}")
 
     plt.xlabel('Days')
@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     # --------------------------------------------------------
     plt.figure()
-    plt.plot(rows[ObsRow.CUMULATIVE_POSITIVE.value] / rows[ObsRow.CUMULATIVE_TESTED.value], label=f"cumulative positive/tested ratio")
+    plt.plot(rows[ObsEnum.CUMULATIVE_POSITIVE.value] / rows[ObsEnum.CUMULATIVE_TESTED.value], label=f"cumulative positive/tested ratio")
     plt.ylim(0,1)
     plt.xlabel('Days')
     plt.ylabel('Ratio')
@@ -60,14 +60,14 @@ if __name__ == "__main__":
 
     # --------------------------------------------------------
     plt.figure()
-    a = rows[ObsRow.CUMULATIVE_POSITIVE.value]
-    b = rows[ObsRow.HOSPITALIZED.value]
+    a = rows[ObsEnum.CUMULATIVE_POSITIVE.value]
+    b = rows[ObsEnum.HOSPITALIZED.value]
     plt.plot(a / b, label=f"cumulative positive/hospitalized ratio")
-    a = rows[ObsRow.CUMULATIVE_TESTED.value]
-    b = rows[ObsRow.HOSPITALIZED.value]
+    a = rows[ObsEnum.CUMULATIVE_TESTED.value]
+    b = rows[ObsEnum.HOSPITALIZED.value]
     plt.plot(a / b, label=f"cumulative tested/hospitalized ratio")
 
-    plt.plot(rows[ObsRow.CUMULATIVE_POSITIVE.value] / rows[ObsRow.CUMULATIVE_TESTED.value], label=f"cumulative positive/tested ratio")
+    plt.plot(rows[ObsEnum.CUMULATIVE_POSITIVE.value] / rows[ObsEnum.CUMULATIVE_TESTED.value], label=f"cumulative positive/tested ratio")
 
     plt.xlabel('Days')
     plt.ylabel('Ratio')
