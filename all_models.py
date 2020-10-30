@@ -2,39 +2,45 @@ from copy import copy
 import numpy as np
 from scipy.integrate import odeint
 from scipy.optimize import minimize as opt_minimize
+from scipy.optimize import dual_annealing
 from lmfit import minimize, Parameters, report_fit
 from geneticalgorithm import geneticalgorithm as ga
 
 import matplotlib.pyplot as plt
-from utils import ObsRow, Model, residuals_error, load_data
+from utils import ObsEnum, Model, residuals_error, load_data
 
 
-def mean_square_error(results, observations):
+def absolute_error(results, observations):
     d = results - observations
     return np.sum(np.abs(d))
 
+def mean_square_error(results, observations):
+    d = results - observations
+    return np.sum(d*d)
 
 class Stefan(Model):
     def __init__(self, observations, N):
         self._N = N
-        self._observations = observations
         self._fit_params = None
 
         self._nb_observations = observations.shape[0]
 
         self._observations = observations[
             np.ix_(range(self._nb_observations),
-                   [ObsRow.CUMULATIVE_POSITIVE.value,
-                    ObsRow.CUMULATIVE_HOSPITALIZATIONS.value,
-                    ObsRow.CRITICAL.value])]
+                   [ObsEnum.CUMULATIVE_POSITIVE.value,
+                    ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value,
+                    ObsEnum.CRITICAL.value])]
 
     def fit_parameters(self, error_func):
         self._error_func = error_func
-        z = opt_minimize(
+
+        # https://scipy-lectures.org/advanced/mathematical_optimization/
+
+        z = dual_annealing(
             self._pfunc,
-            [1, 1, 1, 1, 0.2, 0.2],
-            bounds=[[0,200],[1,20],[0.001,5],[0.001,10],[0.001,10],[0.01,10]],
-            options={'disp': True})
+            #[5, 1, 1, 1, 0.2, 0.2],
+            bounds=[[5,5.1],[1,1.1],
+                    [0.5,2],[0.001,5],[0.001,5],[0.01,5]])
 
         i_start, h_start, alpha, beta, gamma1, gamma2 = z.x
         c_start = 0
@@ -52,12 +58,11 @@ class Stefan(Model):
             [alpha, beta, gamma1, gamma2],
             days)
 
-        return [ObsRow.CUMULATIVE_POSITIVE,
-                ObsRow.CUMULATIVE_HOSPITALIZATIONS,
-                ObsRow.CRITICAL], res[:, 1:4]
+        return [ObsEnum.CUMULATIVE_POSITIVE,
+                ObsEnum.CUMULATIVE_HOSPITALIZATIONS,
+                ObsEnum.CRITICAL], res[:, 1:4]
 
     def _predict(self, initial_conds, params, days):
-        INITIAL_POP = initial_conds[0]
 
         values = copy(initial_conds)
         days_data = [values]
@@ -73,15 +78,21 @@ class Stefan(Model):
 
             s, i, h, c = values
 
-            #print(f"{alpha} {i} {s}")
-            s_to_i = alpha*i # This screws the minimizer completely : *(s/INITIAL_POP)
+            try:
+                pass
+                # print(f"days={days} alpha={alpha:.2f} beta={beta:.2f} i={i} frac_s={int(s)}/{self._N}")
+            except Exception:
+                pass
 
-            print(f"{day}\t{s_to_i}, i={i}, s={s}")
+            s_to_i = alpha*i *(s/self._N) # This screws the minimizer completely : *(s/INITIAL_POP) unless I put appropraite bounds.
 
             ds = - s_to_i
             di = + s_to_i - beta*i
-            dh = + beta*i - gamma1*h
-            dc = + gamma1*h - gamma2*h
+
+            # dh = + beta*i - gamma1*h
+            # dc = + gamma1*h - gamma2*h
+
+            dh = dc = 0
 
             # if s + ds < 0:
             #     print("s too small")
@@ -108,6 +119,7 @@ class Stefan(Model):
         i_start, h_start, alpha, beta, gamma1, gamma2 = params
         c_start = 0
 
+        #print(f"Prediction {params}")
         v = self._predict(
                 [self._N, i_start, h_start, c_start],
                 [alpha, beta, gamma1, gamma2],
@@ -115,7 +127,10 @@ class Stefan(Model):
 
         # We have no basis to compare S(suspect) to...
 
-        e = self._error_func(v[:, 1:4], self._observations)
+        # print(self._observations[1:,:])
+        # print(v[1:, 1:4])
+        e = self._error_func(v[1:, 1:4], self._observations[1:,:])
+        #print(e)
         #e = self._error_func(v[:, 1], self._observations[:, 0])
 
         return e
@@ -131,9 +146,9 @@ class Sarah1(Model):
 
         self._observations = observations[
             np.ix_(range(nb_observations),
-                   [ObsRow.CUMULATIVE_POSITIVE.value,
-                    ObsRow.CUMULATIVE_HOSPITALIZATIONS.value,
-                    ObsRow.CRITICAL.value])]
+                   [ObsEnum.CUMULATIVE_POSITIVE.value,
+                    ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value,
+                    ObsEnum.CRITICAL.value])]
 
         I0 = 1 # self._observations[0][0]
         H0 = self._observations[0][1]
@@ -181,11 +196,11 @@ class Sarah1(Model):
     def predict(self, days):
         res = self._predict(self._initial_conditions, days, self._fit_params)
 
-        return [ObsRow.SUSPECT,
-                ObsRow.CUMULATIVE_POSITIVE,
-                ObsRow.CUMULATIVE_HOSPITALIZATIONS,
-                ObsRow.CRITICAL,
-                ObsRow.RECOVERED], res
+        return [ObsEnum.SUSPECT,
+                ObsEnum.CUMULATIVE_POSITIVE,
+                ObsEnum.CUMULATIVE_HOSPITALIZATIONS,
+                ObsEnum.CRITICAL,
+                ObsEnum.RECOVERED], res
 
     def _predict(self, initial_conditions, days, params):
         tspan = np.arange(0, days, 1)
@@ -208,11 +223,17 @@ class Sarah1(Model):
 
         # Modèle SIHCR
         # Liens et paramètres:
+
         # S -> I : - (beta * S * I )/ N
-        # I <- S : (beta * S * I )/ N
-        # I -> R : - gamma1 * I |&| I -> H : - tau * I
-        # H <- I : tau * I
-        # H -> R : - gamma2 * H |&| H -> C : - delta * H
+        # (I <- S : (beta * S * I )/ N)
+
+        # I -> R : - gamma1 * I |&|
+        # I -> H : - tau * I
+
+        # (H <- I : tau * I)
+        # H -> R : - gamma2 * H |&|
+        # H -> C : - delta * H
+
         # C <- H : delta * H
         # C -> R : - gamma3 * C
         # R <- I : gamma1 * R |&| R <- H : gamma2 * H |&| R <- C : gamma3 * C
@@ -223,31 +244,49 @@ class Sarah1(Model):
         # Dans celui-ci, la somme des "num_positive" nous donne le total des
         # gens qui ont été infectés par le covid, "num_cumulative_positive".
 
+        #% Le total des personnes infectées du début de l'épidémie
+        #% jusqu'au jour d.
+
         # Si on calcule:
         # "num_cumulative_hospitalizations / num_cumulative_positive"
         # Ceci nous donne la proportions de gens infectés qui ont étés admis
         # à l'hopital. On a donc une première approximation du paramètre "tau"
-        # qui représente le taux de transition des personnes infectées vèrs
+        # qui représente le taux de transition des personnes infectées vers
         # l'hopital.
 
         # Puisque notre modèle ne considère pas que le gens meurent du virus
         # on peut connaitre à tout temps le nombre total de personnes qui se
-        # sont rétablies en étant soit à l'hopital soit en soins intesifs.
+        # sont rétablies en étant soit à l'hopital soit en soins intensifs.
+
+        #% Où se trouvent les "R_survivants" ? càd dans que état du modèle ?
+        #% Vu à quoi ressemble la formule, je dirais que les "survivants"
+        #% sont les personnes qui ont quitté l'hospitalisation ou les soins
+        #% intensifs vivants.
+
+        #% Pour le moment on ne prend pas les morts en compte.
+
+        #% Mais alors je m'inquiète de ne pas voir les morts car on a la
+        #% donnée (même si pour le moment, ça vaut 0).
+
         # Appelons ces persones "R_survivants".
         # R_survivants = num_cumulative_hospitalizations - num_hospitalised
         #                                                - num_critical
 
-
-        # À chaque temps t on sait dans déterminer combien de personnes sortent
+        # À chaque temps t on sait donc déterminer combien de personnes sortent
         # SOIT des soins intensifs SOIT de l'hopital, appelons cela "R_out_HC".
         # Pour cela il suffit de calculer:
         # "R_out_HC(t) = R_survivants(t) - R_survivants(t-1)"
+
+        #% Ce serait bien que ces variables "R_out_HC" soient aussi dans le
+        #% code, ça rendrait l'explication plus facile à suivre (donc rapport
+        #% de meilleure qualité)
 
         # "R_out_HC" corresponds, dans notre système d'équations, à:
         # "R_out_HC = gamma2 * H + gamma3 * C"
         # Ceci nous fournit donc une contrainte supplémentaire pouvant nous
         # permettre d'avoir une meilleure estimation des paramètres "gamma2"
         # ainsi que "gamma3".
+
         # TO THINK/DISCUSS: Comment intégrer cette équation? Elle ne doit pas
         # rentrer dans le modèle puisqu'il se fait intégrer. Peut-être quelque
         # part dans la fonction qui calcule l'erreur.
@@ -256,7 +295,10 @@ class Sarah1(Model):
         # faisant partie de la catégorie R à chaque instant. En effet, écrire
         # "R = num_cumulative_positive - num_cumulative_hospitalizations
         #                              + R_survivants"
-        # serait inexacte. Cela reviendrait à considérer que les personnes
+
+        #% Ici je ne comprends pas : R_survivants comprend FIXME
+
+        # serait inexact. Cela reviendrait à considérer que les personnes
         # infectées guériraient du virus instantanément. Si l'on connaissait
         # le temps qu'il faut à une personne infectée pour devenir "saine" et
         # qu'on appelle cela "time_IR" on pourrait alors plus ou moins avoir
@@ -286,10 +328,8 @@ class Sarah1(Model):
         # occupés, personnes ne pourra donc se déplacer vers la catégorie
         # dans laquelle il manque de la place.
 
-        N = self._N
-
-        dSdt = -(beta * I) * (S / N)
-        dIdt = beta * S * I / N - gamma1 * I - tau * I
+        dSdt = -(beta * I) * (S / self._N)
+        dIdt = beta * S * I / self._N - gamma1 * I - tau * I
         dHdt = tau * I - gamma2 * H - delta * H
         dCdt = delta * H - gamma3 * C
         dRdt = gamma1 * I + gamma2 * H + gamma3 * C
@@ -335,6 +375,10 @@ class Sarah1(Model):
 
         res = self._predict(self._initial_conditions, days, params)
 
+
+        print("-"*80)
+        print(res) # shape = 25x5
+
         # Our prediction function predicts different values
         # However, not all these values can be compared to
         # real data. The code below actually selects the
@@ -344,7 +388,9 @@ class Sarah1(Model):
         # data. Our model predicts more than that so we
         # take onyl the subset of our predictions.
 
-        # Pick full columns of indices 1,2,3.
+        # res= S, I, H, C, R
+        # We're only interested in I, H, C for the moment
+        # (so indices 1,2,3)
         rselect = np.ix_(range(res.shape[0]), [1, 2, 3])
 
         return error_func(res[rselect],
@@ -361,9 +407,9 @@ class Sarah1GA(Model):
 
         self._observations = observations[
             np.ix_(range(nb_observations),
-                   [ObsRow.CUMULATIVE_POSITIVE.value,
-                    ObsRow.CUMULATIVE_HOSPITALIZATIONS.value,
-                    ObsRow.CRITICAL.value])]
+                   [ObsEnum.CUMULATIVE_POSITIVE.value,
+                    ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value,
+                    ObsEnum.CRITICAL.value])]
 
         I0 = 1 # self._observations[0][0]
         H0 = self._observations[0][1]
@@ -430,11 +476,11 @@ class Sarah1GA(Model):
     def predict(self, days):
         res = self._predict(self._initial_conditions, days, self._fit_params)
 
-        return [ObsRow.SUSPECT,
-                ObsRow.CUMULATIVE_POSITIVE,
-                ObsRow.CUMULATIVE_HOSPITALIZATIONS,
-                ObsRow.CRITICAL,
-                ObsRow.RECOVERED], res
+        return [ObsEnum.SUSPECT,
+                ObsEnum.CUMULATIVE_POSITIVE,
+                ObsEnum.CUMULATIVE_HOSPITALIZATIONS,
+                ObsEnum.CRITICAL,
+                ObsEnum.RECOVERED], res
 
     def _predict(self, initial_conditions, days, params):
         tspan = np.arange(0, days, 1)
@@ -488,18 +534,23 @@ if __name__ == "__main__":
     head, observations, rows = load_data()
     rows = np.array(rows)
 
-    # m = Stefan(rows, 10000)
-    # m.fit_parameters(mean_square_error)
-    # res_ndx, res = m.predict(20)
-    # res_dict = dict(zip(res_ndx, range(len(res_ndx))))
-    # for t in [ObsRow.CUMULATIVE_POSITIVE, ObsRow.CUMULATIVE_HOSPITALIZATIONS]:
-    #     plt.plot(res[:, res_dict[t]], label=f"{t} (model)")
-    #     plt.plot(rows[:, t.value], label=f"{t} (real)")
+    m = Stefan(rows, 1000000)
+    m.fit_parameters(mean_square_error)
+    res_ndx, res = m.predict(100)
+    res_dict = dict(zip(res_ndx, range(len(res_ndx))))
+    for t in [ObsEnum.CUMULATIVE_POSITIVE, ObsEnum.CUMULATIVE_HOSPITALIZATIONS]:
+        plt.plot(res[:, res_dict[t]], '--', color=ObsEnum.color(t), label=f"{t} (model)")
+        plt.plot(rows[:, t.value], color=ObsEnum.color(t), label=f"{t} (real)")
 
-    # plt.xlabel('Days')
-    # plt.ylabel('Individuals')
-    # plt.legend()
-    # plt.show()
+    y = [1.25*(y+0.5)*(y+0.5) for y in range(30)]
+    plt.plot(y)
+    plt.ylim(0,2000)
+    plt.xlabel('Days')
+    plt.ylabel('Individuals')
+    plt.legend()
+    plt.show()
+
+    exit()
 
     # -------------------------------------------------------------
 
@@ -510,10 +561,10 @@ if __name__ == "__main__":
     res_dict = dict(zip(sres_ndx, range(len(sres_ndx))))
 
     plt.figure()
-    for t in [ObsRow.CUMULATIVE_POSITIVE,
-              ObsRow.CUMULATIVE_HOSPITALIZATIONS]:
-        plt.plot(sres[:, res_dict[t]], '--', color=ObsRow.color(t), label=f"{t} (model)")
-        plt.plot(rows[:, t.value], color=ObsRow.color(t), label=f"{t} (real)")
+    for t in [ObsEnum.CUMULATIVE_POSITIVE,
+              ObsEnum.CUMULATIVE_HOSPITALIZATIONS]:
+        plt.plot(sres[:, res_dict[t]], '--', color=ObsEnum.color(t), label=f"{t} (model)")
+        plt.plot(rows[:, t.value], color=ObsEnum.color(t), label=f"{t} (real)")
 
     plt.title('LM fit')
     plt.xlabel('Days')
@@ -531,10 +582,10 @@ if __name__ == "__main__":
     res_dict = dict(zip(sres_ndx, range(len(sres_ndx))))
 
     plt.figure()
-    for t in [ObsRow.CUMULATIVE_POSITIVE,
-              ObsRow.CUMULATIVE_HOSPITALIZATIONS]:
-        plt.plot(sres[:, res_dict[t]], '--', color=ObsRow.color(t), label=f"{t} (model)")
-        plt.plot(rows[:, t.value], color=ObsRow.color(t), label=f"{t} (real)")
+    for t in [ObsEnum.CUMULATIVE_POSITIVE,
+              ObsEnum.CUMULATIVE_HOSPITALIZATIONS]:
+        plt.plot(sres[:, res_dict[t]], '--', color=ObsEnum.color(t), label=f"{t} (model)")
+        plt.plot(rows[:, t.value], color=ObsEnum.color(t), label=f"{t} (real)")
 
     plt.title('GA fit')
     plt.xlabel('Days')
