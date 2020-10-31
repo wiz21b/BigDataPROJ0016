@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import Enum
+import numpy as np
 import csv
 from collections import namedtuple
 import urllib.request
@@ -44,15 +45,12 @@ class ObsEnum(Enum):
 
     def __str__(self):
         return self.name.replace("_", " ").lower()
-    
+
     @staticmethod
     def color(t: ObsRow):
         return COLORS[t.value]
 
 class StateEnum(Enum):
-    # These 5 are the one provided by the teachers.
-    # Do not change them
-
     SUCEPTIBLE = 0
     EXPOSED = 1
     INFECTIOUS = 2
@@ -62,6 +60,10 @@ class StateEnum(Enum):
 
     def __str__(self):
         return self.name.replace("_", " ").lower()
+
+    @staticmethod
+    def color(t: ObsRow):
+        return COLORS[t.value]
 
 class Model:
     def __init__(self, observations):
@@ -96,8 +98,12 @@ class Model:
 
 
 def residuals_error(results, observations):
+    # Useful for lmfit when usead as leastsq
     return results - observations
 
+def mean_square_error(results, observations):
+    d = results - observations
+    return np.sum(d*d)
 
 def load_data():
     observations = []
