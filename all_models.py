@@ -3,7 +3,8 @@ import numpy as np
 from scipy.integrate import odeint
 from scipy.optimize import minimize as opt_minimize
 from scipy.optimize import dual_annealing
-from lmfit import minimize, Parameters, report_fit
+from lmfit import minimize as lmfit_minimize
+from lmfit import Parameters, report_fit
 from geneticalgorithm import geneticalgorithm as ga
 
 import matplotlib.pyplot as plt
@@ -17,7 +18,7 @@ def absolute_error(results, observations):
 def mean_square_error(results, observations):
     d = results - observations
     return np.sum(d*d)
-# blabla
+
 class Stefan(Model):
     def __init__(self, observations, N):
         self._N = N
@@ -162,6 +163,8 @@ class Sarah1(Model):
         self._fit_params = None
 
     def fit_parameters(self, error_func):
+        assert error_func == residuals_error, "right now we only know about lmfit miniumize, so we need to use residuals error"
+
         gamma1 = (1/10 + 1/5)/2
         gamma2 = 0.02
         gamma3 = 0.02
@@ -184,10 +187,14 @@ class Sarah1(Model):
         params.add('tau', value=tau, min=tau*0.8, max=tau*1.2)
         params.add('delta', value=delta, min=0.6*delta, max=1.4*delta)
 
-        result = minimize(self._plumb,
-                          params,
-                          args=(len(self._observations), error_func),
-                          method='leastsq')
+        # Attention ! We use leastsq
+        # so the objective function must
+        # return an array ith the residuals.
+
+        result = lmfit_minimize(self._plumb,
+                                params,
+                                args=(len(self._observations), error_func),
+                                method='leastsq')
 
         report_fit(result)
 
@@ -196,11 +203,13 @@ class Sarah1(Model):
     def predict(self, days):
         res = self._predict(self._initial_conditions, days, self._fit_params)
 
-        return [ObsEnum.SUSPECT,
-                ObsEnum.CUMULATIVE_POSITIVE,
-                ObsEnum.CUMULATIVE_HOSPITALIZATIONS,
-                ObsEnum.CRITICAL,
-                ObsEnum.RECOVERED], res
+        # S, I, H, C, R = y
+
+        return [StateEnum.SUCEPTIBLE,
+                StateEnum.INFECTIOUS,
+                StateEnum.HOSPITALIZED,
+                StateEnum.CRITICAL,
+                StateEnum.RECOVERED], res
 
     def _predict(self, initial_conditions, days, params):
         tspan = np.arange(0, days, 1)
@@ -393,8 +402,9 @@ class Sarah1(Model):
         # (so indices 1,2,3)
         rselect = np.ix_(range(res.shape[0]), [1, 2, 3])
 
-        return error_func(res[rselect],
-                          self._observations).ravel()
+        # Only valid with lmfit_minimize with option "leastsq"
+        return residuals_error(res[rselect],
+                               self._observations).ravel()
 
 
 
@@ -534,23 +544,24 @@ if __name__ == "__main__":
     head, observations, rows = load_data()
     rows = np.array(rows)
 
-    m = Stefan(rows, 1000000)
-    m.fit_parameters(mean_square_error)
-    res_ndx, res = m.predict(100)
-    res_dict = dict(zip(res_ndx, range(len(res_ndx))))
-    for t in [ObsEnum.CUMULATIVE_POSITIVE, ObsEnum.CUMULATIVE_HOSPITALIZATIONS]:
-        plt.plot(res[:, res_dict[t]], '--', color=ObsEnum.color(t), label=f"{t} (model)")
-        plt.plot(rows[:, t.value], color=ObsEnum.color(t), label=f"{t} (real)")
+    # m = Stefan(rows, 1000000)
+    # m.fit_parameters(mean_square_error)
+    # res_ndx, res = m.predict(100)
+    # res_dict = dict(zip(res_ndx, range(len(res_ndx))))
+    # for t in [ObsEnum.CUMULATIVE_POSITIVE, ObsEnum.CUMULATIVE_HOSPITALIZATIONS]:
+    #     plt.plot(res[:, res_dict[t]], '--', color=ObsEnum.color(t), label=f"{t} (model)")
+    #     plt.plot(rows[:, t.value], color=ObsEnum.color(t), label=f"{t} (real)")
 
-    y = [1.25*(y+0.5)*(y+0.5) for y in range(30)]
-    plt.plot(y)
-    plt.ylim(0,2000)
-    plt.xlabel('Days')
-    plt.ylabel('Individuals')
-    plt.legend()
-    plt.show()
+    # y = [1.25*(y+0.5)*(y+0.5) for y in range(30)]
+    # plt.plot(y)
 
-    exit()
+    # plt.ylim(0,2000)
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # plt.legend()
+    # plt.show()
+
+    # exit()
 
     # -------------------------------------------------------------
 
@@ -575,21 +586,21 @@ if __name__ == "__main__":
 
     # -------------------------------------------------------------
 
-    ms = Sarah1GA(rows, 1000000)
-    ms.fit_parameters(residuals_error)
-    sres_ndx, sres = ms.predict(30)
+    # ms = Sarah1GA(rows, 1000000)
+    # ms.fit_parameters(residuals_error)
+    # sres_ndx, sres = ms.predict(30)
 
-    res_dict = dict(zip(sres_ndx, range(len(sres_ndx))))
+    # res_dict = dict(zip(sres_ndx, range(len(sres_ndx))))
 
-    plt.figure()
-    for t in [ObsEnum.CUMULATIVE_POSITIVE,
-              ObsEnum.CUMULATIVE_HOSPITALIZATIONS]:
-        plt.plot(sres[:, res_dict[t]], '--', color=ObsEnum.color(t), label=f"{t} (model)")
-        plt.plot(rows[:, t.value], color=ObsEnum.color(t), label=f"{t} (real)")
+    # plt.figure()
+    # for t in [ObsEnum.CUMULATIVE_POSITIVE,
+    #           ObsEnum.CUMULATIVE_HOSPITALIZATIONS]:
+    #     plt.plot(sres[:, res_dict[t]], '--', color=ObsEnum.color(t), label=f"{t} (model)")
+    #     plt.plot(rows[:, t.value], color=ObsEnum.color(t), label=f"{t} (real)")
 
-    plt.title('GA fit')
-    plt.xlabel('Days')
-    plt.ylabel('Individuals')
-    plt.ylim(0, 1000)
-    plt.legend()
-    plt.show()
+    # plt.title('GA fit')
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # plt.ylim(0, 1000)
+    # plt.legend()
+    # plt.show()

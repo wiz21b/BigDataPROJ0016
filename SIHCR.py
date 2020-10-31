@@ -1,146 +1,258 @@
+from copy import copy
 import numpy as np
-import random
-import pandas as pd
-from scipy.integrate import odeint, solve_ivp
+from scipy.integrate import odeint
+from scipy.optimize import minimize as opt_minimize
+from lmfit import minimize, Parameters, report_fit
 import matplotlib.pyplot as plt
-import seaborn as sns
-import matplotlib.dates as mdates
-from matplotlib import dates
-from sklearn.metrics import mean_squared_error, r2_score
-from datetime import datetime
-from lmfit import minimize, Parameters, Parameter, report_fit
-import csv
-import urllib.request
-from collections import namedtuple
-#import requests
-
-observations = []
-rows = []
-positive_cumulated = 0
-
-with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/data.csv") as fp:
-
-    data = fp.read().decode("utf-8").split('\n')
-    csvreader = csv.reader(data, delimiter=',')
-
-    head = next(csvreader)
-    DataTuple = namedtuple("DataTuple", head)
-
-    for r in csvreader:
-        if r:
-            ir = [int(x) for x in r]
-            t = DataTuple(*ir)
-            observations.append(t)
-            rows.append(ir + [positive_cumulated])
-            
-rows = np.array(rows)
-rows_tr = np.array(rows).transpose()
-
-#for positive
-
-NUM_POSITIVE = 1
-NUM_HOSPITALIZED = 2
-NUM_CUMULATIVE_HOSPITALIZATIONS = 3
-NUM_CRITICAL = 4
-NUM_FATALITIES = 5
-N = 1000000
+from utils import ObsRow, Model, residuals_error, load_data
 
 
-# %    Day} : the day the data below was collected
-# %    num\_positive :  number of individuals tested positive on this day.
-# %    num\_hospitalised :  number of individuals currently at the hospital.
-# %    num\_cumulative\_hospitalizations} : cumulative number of individuals who %were or are being hospitalized.
-# %    num\_critical :  number of individuals currently in an ICU (criticals are %not counted as part of \texttt{num\_hospitalized}).
-# %    num\_fatalities :  cumulative number of deaths.
+def mean_square_error(results, observations):
+    d = results - observations
+    return np.sum(d*d)
 
-def SIHCR_model(y, t, gamma1, gamma2, gamma3, beta, tau, delta):
-    S, I, H, C, R = y
 
-    # Vu que le modèle ne fait que des liens simples ( on sait passer de S --> I et de I --> H mais pas 
-    # de S --> H), on est onligé de si on est infecté de passer pas la case I. Et donc le cumul de num_positif
-    # nous donne le nombre totaux de personnes positives au covid. Donc si on utilise cumulH / cumul_num_positif,
-    # on a un ratio qui représente le nombre de personnes qui ont eu le covid et qui sont passée sur 
-    # un lit d'hopital. ( tau )
+class Stefan(Model):
+    def __init__(self, observations, N):
+        self._N = N
+        self._observations = observations
+        self._fit_params = None
 
-    # nombre de gens qui sont sortis de l'hospital total Rsurvivants
-    # = num_cumulative_hospitalizations - num_hospitalised - num_critical - num_fatalities
-    
-    # S --> I --> H --> C --> F
-    
-    # nombre total R = cumul_num_positif - num_cumulative_hospitalizations + Rsurvivants
-    # 19 qui ont ete hospitalisée dont 10 qui sont toujours hospitalisée, 4 qui sont en critique, 0 en fatalities
-    # donc 9 plus dans H donc on a 5 qui sont sortie de l'hopital et immunisée ( les Rsurvivants)
-    
-    dSdt = -beta * S * I / N
-    dIdt = beta * S * I / N - gamma1 * I - tau * I
-    dHdt = tau * I - gamma2 * H - delta * H
-    dCdt = delta * H - gamma3 * C
-    dRdt = gamma1 * I + gamma2 * H + gamma3 * C
-    return [dSdt, dIdt, dHdt, dCdt, dRdt]
+        nb_observations = observations.shape[0]
 
-def ode_solver(t, IC, params):
-    S0, I0, H0, C0, R0 = IC
-    gamma1 = params['gamma1']
-    gamma2 = params['gamma2']
-    gamma3 = params['gamma3']
-    beta = params['beta']
-    tau = params['tau']
-    delta = params['delta']
+        self._observations = observations[
+            np.ix_(range(nb_observations),
+                   [ObsRow.CUMULATIVE_POSITIVE.value,
+                    ObsRow.CUMULATIVE_HOSPITALIZATIONS.value,
+                    ObsRow.CRITICAL.value])]
 
-    res = odeint(SIHCR_model, [S0, I0, H0, C0, R0], t, args=(gamma1, gamma2, gamma3, beta, tau, delta))
-    return res
+    def fit_parameters(self, error_func):
+        self._error_func = error_func
+        z = opt_minimize(
+            self._pfunc,
+            [2, 1, 0.2, 0.2, 0.2, 0.2],
+            method='L-BFGS-B',
+            bounds=[[0,5],[1,1],[0.01,2],[0.01,2],[0.2,2],[0.01,2]],
+            options={'disp': True})
+        print(z.x)
 
-def error(params, IC, tspan, data):
-    sol = ode_solver(tspan, IC, params)
-    return (sol[:, 1:4] - data).ravel()
+        i_start, h_start, alpha, beta, gamma1, gamma2 = z.x
+        c_start = 0
 
-I0 = rows[0][NUM_POSITIVE]
-H0 = rows[0][NUM_HOSPITALIZED]
-C0 = rows[0][NUM_CRITICAL]
-R0 = 0
-S0 = N - I0 - R0 - H0 - C0
+        self._fit_params = [i_start, h_start, alpha, beta,
+                            gamma1, gamma2, c_start]
 
-initial_conditions = [S0, I0, H0, C0, R0]
+    def predict(self, days):
+        i_start, h_start, alpha, beta, gamma1, gamma2, c_start = self._fit_params
 
-gamma1 = 0.02
-gamma2 = 0.02
-gamma3 = 0.02
-beta = 1.14
-tau = 0.02
-delta = 0.02
+        res = self._predict(
+            [self._N, i_start, h_start, c_start],
+            [alpha, beta, gamma1, gamma2],
+            days)
 
-params = Parameters()
-params.add('gamma1', value=gamma1, min=0, max=5)
-params.add('gamma2', value=gamma2, min=0, max=5)
-params.add('gamma3', value=gamma3, min=0, max=5)
-params.add('beta', value = beta, min=0, max= 5)
-params.add('tau', value=tau, min=0, max=5)
-params.add('delta', value=delta, min=0, max=5)
+        return [ObsRow.CUMULATIVE_POSITIVE,
+                ObsRow.CUMULATIVE_HOSPITALIZATIONS,
+                ObsRow.CRITICAL], res[:, 1:4]
 
-days = 19
-tspan = np.arange(0, days, 1)
+    def _predict(self, initial_conds, params, days):
+        INITIAL_POP = initial_conds[0]
 
-#data = observations.loc[0:(days-1), ['num_positive', 'num_hospitalised', 'num_critical']].values
-data = np.delete(rows_tr, 6, 0)
-data = np.delete(data, 5, 0)
-data = np.delete(data, 3, 0)
-data = np.delete(data, 0, 0)
+        values = copy(initial_conds)
+        days_data = [values]
 
-data = np.array(data).transpose()
+        alpha, beta, gamma1, gamma2 = params
 
-result = minimize(error, params, args=(initial_conditions, tspan, data), method = 'leastsq')
+        for day in range(days-1):
 
-report_fit(result)
+            s, i, h, c = values
 
-final = data + result.residual.reshape(data.shape)
-fin = np.array(final).transpose()
+            # s = suscpetible (ie not yet infected)
+            # i = infected
+            # h = hospitalised
+            # c = critical
 
-plt.plot(tspan, rows_tr[1],'o', c='k', label='actuel positifs')
-plt.plot(tspan, fin[0], '--', linewidth = 2, c='red', label= 'best fit')
+            s_to_i = alpha*(s/INITIAL_POP)*i
 
-plt.plot(tspan, rows_tr[2],'+', c='k', label='actuel num_hospitalised')
-plt.plot(tspan, fin[1], '--', linewidth = 2, c='red', label= 'best fit hosp')
+            ds = - s_to_i
+            di = + s_to_i - beta*i
+            dh = + beta*i - gamma1*h
+            dc = + gamma1*h - gamma2*h
 
-plt.xlabel('Days')
-plt.ylabel('Cas')
-plt.show()
+            s = max(0, s+ds)
+            i = max(0, i+di)
+            h = max(0, h+dh)
+            c = max(0, c+dc)
+
+            values = [s, i, h, c]
+
+            days_data.append(values)
+
+        return np.array(days_data)
+
+    def _pfunc(self, params):
+        # Plumbing function to run the optimizer
+        nb_observations = self._observations.shape[0]
+
+        i_start, h_start, alpha, beta, gamma1, gamma2 = params
+        c_start = 0
+
+        v = self._predict(
+                [self._N, i_start, h_start, c_start],
+                [alpha, beta, gamma1, gamma2],
+                nb_observations)
+
+        # We have no basis to compare S(suspect) to...
+        e = self._error_func(v[:, 1:4], self._observations)
+
+        return e
+
+
+
+class Sarah1(Model):
+
+    def __init__(self, observations, N):
+
+        self._N = N
+        nb_observations = observations.shape[0]
+
+        self._observations = observations[
+            np.ix_(range(nb_observations),
+                   [ObsRow.POSITIVE.value, ObsRow.HOSPITALIZED.value,
+                    ObsRow.CRITICAL.value])]
+
+        I0 = self._observations[0][0]
+        H0 = self._observations[0][1]
+        C0 = self._observations[0][2]
+        R0 = 0
+        S0 = self._N - I0 - R0 - H0 - C0
+
+        self._initial_conditions = [S0, I0, H0, C0, R0]
+
+        print(self._initial_conditions)
+        self._fit_params = None
+
+    def fit_parameters(self, error_func):
+        gamma1 = 0.02
+        gamma2 = 0.02
+        gamma3 = 0.02
+        beta = 1.14
+        tau = 0.02
+        delta = 0.02
+
+        params = Parameters()
+        params.add('gamma1', value=gamma1, min=0, max=5)
+        params.add('gamma2', value=gamma2, min=0, max=5)
+        params.add('gamma3', value=gamma3, min=0, max=5)
+        params.add('beta', value=beta, min=0, max=5)
+        params.add('tau', value=tau, min=0, max=5)
+        params.add('delta', value=delta, min=0, max=5)
+
+        result = minimize(self._plumb,
+                          params,
+                          args=(len(self._observations), error_func),
+                          method='leastsq')
+
+        report_fit(result)
+
+        self._fit_params = result.params
+
+    def predict(self, days):
+        res = self._predict(self._initial_conditions, days, self._fit_params)
+
+        return [ObsRow.SUSPECT,
+                ObsRow.POSITIVE,
+                ObsRow.HOSPITALIZED,
+                ObsRow.CRITICAL,
+                ObsRow.RECOVERED], res
+
+    def _predict(self, initial_conditions, days, params):
+        tspan = np.arange(0, days, 1)
+
+        S0, I0, H0, C0, R0 = initial_conditions
+        gamma1 = params['gamma1']
+        gamma2 = params['gamma2']
+        gamma3 = params['gamma3']
+        beta = params['beta']
+        tau = params['tau']
+        delta = params['delta']
+
+        # Integrate ODE over time span [0,days]
+        res = odeint(self._SIHCR_model, [S0, I0, H0, C0, R0],
+                     tspan, args=(gamma1, gamma2, gamma3, beta, tau, delta))
+        return res
+
+    def _SIHCR_model(self, y, t, gamma1, gamma2, gamma3, beta, tau, delta):
+        S, I, H, C, R = y
+
+        # Vu que le modèle ne fait que des liens simples ( on sait
+        # passer de S --> I et de I --> H mais pas de S --> H), on est
+        # onligé de si on est infecté de passer pas la case I. Et donc
+        # le cumul de num_positif nous donne le nombre totaux de
+        # personnes positives au covid. Donc si on utilise cumulH /
+        # cumul_num_positif, on a un ratio qui représente le nombre de
+        # personnes qui ont eu le covid et qui sont passée sur un lit
+        # d'hopital. ( tau )
+
+        # nombre de gens qui sont sortis de l'hospital total
+        # Rsurvivants = num_cumulative_hospitalizations -
+        # num_hospitalised - num_critical - num_fatalities
+
+        # S --> I --> H --> C --> F
+
+        # nombre total R = cumul_num_positif -
+        # num_cumulative_hospitalizations + Rsurvivants 19 qui ont ete
+        # hospitalisée dont 10 qui sont toujours hospitalisée, 4 qui
+        # sont en critique, 0 en fatalities donc 9 plus dans H donc on
+        # a 5 qui sont sortie de l'hopital et immunisée ( les
+        # Rsurvivants)
+
+        N = self._N
+
+        dSdt = -beta * S * I / N
+        dIdt = beta * S * I / N - gamma1 * I - tau * I
+        dHdt = tau * I - gamma2 * H - delta * H
+        dCdt = delta * H - gamma3 * C
+        dRdt = gamma1 * I + gamma2 * H + gamma3 * C
+        return [dSdt, dIdt, dHdt, dCdt, dRdt]
+
+    def _plumb(self, params, days, error_func):
+        res = self._predict(self._initial_conditions, days, params)
+
+        rselect = np.ix_(range(res.shape[0]), [1, 2, 3])
+
+        return error_func(res[rselect],
+                          self._observations).ravel()
+
+
+if __name__ == "__main__":
+    head, observations, rows = load_data()
+    rows = np.array(rows)
+
+    # m = Stefan(rows, 10000)
+    # m.fit_parameters(mean_square_error)
+    # res_ndx, res = m.predict(100)
+    # for t in [ObsRow.CUMULATIVE_POSITIVE, ObsRow.CUMULATIVE_HOSPITALIZATIONS]:
+    #     plt.plot(res[:, res_dict[t]], label=f"{t} (model)")
+    #     plt.plot(rows[:, t.value], label=f"{t} (real)")
+
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # plt.legend()
+    # plt.show()
+
+    # -------------------------------------------------------------
+
+    ms = Sarah1(rows, 1000000)
+    ms.fit_parameters(residuals_error)
+    sres_ndx, sres = ms.predict(50)
+
+    res_dict = dict(zip(sres_ndx, range(len(sres_ndx))))
+
+    for t in [ObsRow.POSITIVE, ObsRow.HOSPITALIZED]:
+        plt.plot(sres[:, res_dict[t]], label=f"{t} (model)")
+        plt.plot(rows[:, t.value], label=f"{t} (real)")
+
+    plt.xlabel('Days')
+    plt.ylabel('Individuals')
+    plt.legend()
+    plt.show()
