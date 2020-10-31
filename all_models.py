@@ -17,7 +17,7 @@ def absolute_error(results, observations):
 def mean_square_error(results, observations):
     d = results - observations
     return np.sum(d*d)
-
+# blabla
 class Stefan(Model):
     def __init__(self, observations, N):
         self._N = N
