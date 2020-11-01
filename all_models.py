@@ -8,7 +8,7 @@ from lmfit import Parameters, report_fit
 from geneticalgorithm import geneticalgorithm as ga
 
 import matplotlib.pyplot as plt
-from utils import ObsEnum, Model, residuals_error, load_data
+from utils import ObsEnum, Model, residuals_error, load_data, StateEnum
 
 
 def absolute_error(results, observations):

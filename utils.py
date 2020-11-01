@@ -10,7 +10,7 @@ COLORS = ['red', 'green', 'blue', 'magenta', 'purple',
           'darkgreen', 'darkviolet']
 
 class ObsEnum(IntEnum):
-     # These 5 are the one provided by the teachers.
+    # These 6 are the one provided by the teachers.
     # Do not change them
 
     DAYS = 0
@@ -45,7 +45,7 @@ class ObsEnum(IntEnum):
 
     def __str__(self):
         return self.name.replace("_", " ").lower()
-    
+
     @staticmethod
     def color(t: ObsEnum):
         return COLORS[t.value]
@@ -58,24 +58,24 @@ class StateEnum(IntEnum):
     HOSPITALIZED = 3
     CRITICAL = 4
     RECOVERED = 5
-    
-    # Additional deduced states 
+
+    # Additional deduced states
     INFECTED_PER_DAY = 6
-    
+
     def __str__(self):
         return self.name.replace("_", " ").lower()
-    
+
     @staticmethod
     def color(t: ObsEnum):
         return COLORS[t.value]
 
-# The two underlying Enum classes are used to match the indexes of 
-# the "fitting and fitted values" between the observations and the states
+# The two underlying Enum classes are used to match the indexes of the
+# "fitting and fitted values" between the observations and the states
 class ObsFitEnum(IntEnum):
     INFECTED_PER_DAY = ObsEnum.POSITIVE.value
     HOSPITALIZED = ObsEnum.HOSPITALIZED.value
     CRITICAL = ObsEnum.CRITICAL.value
-    
+
     def __str__(self):
         return self.name.replace("_", " ").lower()
 
@@ -83,7 +83,7 @@ class StateFitEnum(IntEnum):
     INFECTED_PER_DAY = StateEnum.INFECTED_PER_DAY.value
     HOSPITALIZED = StateEnum.HOSPITALIZED.value
     CRITICAL = StateEnum.CRITICAL.value
-    
+
     def __str__(self):
         return self.name.replace("_", " ").lower()
 
@@ -123,9 +123,19 @@ def residuals_error(results, observations):
     # Useful for lmfit when usead as leastsq
     return results - observations
 
-def mean_square_error(results, observations):
-     d = results - observations
-     return np.sum(d*d)
+def residual_sum_of_squares(results, observations):
+    d = results - observations
+    return np.sum(d*d)
+
+def log_residual_sum_of_squares( results, observations):
+    # Experimental
+    # The idea is to weight more the small errors
+    # compared to the big ones
+    d = results - observations
+    d = d*d
+    d = np.where( d == float('-inf'), 0, d)
+    return np.sum(d)
+
 
 def load_data():
     observations = []
