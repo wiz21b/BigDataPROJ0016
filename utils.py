@@ -1,5 +1,5 @@
 from __future__ import annotations
-from enum import IntEnum
+from enum import Enum
 import numpy as np
 import csv
 from collections import namedtuple
@@ -9,7 +9,8 @@ COLORS = ['red', 'green', 'blue', 'magenta', 'purple',
           'lime', 'orange', 'chocolate', 'gray',
           'darkgreen', 'darkviolet']
 
-class ObsEnum(IntEnum):
+
+class ObsEnum(Enum):
     # These 6 are the one provided by the teachers.
     # Do not change them
 
@@ -40,8 +41,11 @@ class ObsEnum(IntEnum):
     CUMULATIVE_TESTED = 8
 
     # Other data not in the dataset
-    #RECOVERED = 9
-    #SUSPECT = 10
+    # RECOVERED = 9
+    # SUSPECT = 10
+
+    def __int__(self):
+        return self.value
 
     def __str__(self):
         return self.name.replace("_", " ").lower()
@@ -50,7 +54,8 @@ class ObsEnum(IntEnum):
     def color(t: ObsEnum):
         return COLORS[t.value]
 
-class StateEnum(IntEnum):
+
+class StateEnum(Enum):
     # The mutually exclusive states of our SEIHCR model
     SUCEPTIBLE = 0
     EXPOSED = 1
@@ -62,6 +67,9 @@ class StateEnum(IntEnum):
     # Additional deduced states
     INFECTED_PER_DAY = 6
 
+    def __int__(self):
+        return self.value
+
     def __str__(self):
         return self.name.replace("_", " ").lower()
 
@@ -69,23 +77,32 @@ class StateEnum(IntEnum):
     def color(t: ObsEnum):
         return COLORS[t.value]
 
+
 # The two underlying Enum classes are used to match the indexes of the
 # "fitting and fitted values" between the observations and the states
-class ObsFitEnum(IntEnum):
+class ObsFitEnum(Enum):
     INFECTED_PER_DAY = ObsEnum.POSITIVE.value
     HOSPITALIZED = ObsEnum.HOSPITALIZED.value
     CRITICAL = ObsEnum.CRITICAL.value
 
+    def __int__(self):
+        return self.value
+
     def __str__(self):
         return self.name.replace("_", " ").lower()
 
-class StateFitEnum(IntEnum):
+
+class StateFitEnum(Enum):
     INFECTED_PER_DAY = StateEnum.INFECTED_PER_DAY.value
     HOSPITALIZED = StateEnum.HOSPITALIZED.value
     CRITICAL = StateEnum.CRITICAL.value
 
+    def __int__(self):
+        return self.value
+
     def __str__(self):
         return self.name.replace("_", " ").lower()
+
 
 class Model:
     def __init__(self, observations):
@@ -123,17 +140,19 @@ def residuals_error(results, observations):
     # Useful for lmfit when usead as leastsq
     return results - observations
 
+
 def residual_sum_of_squares(results, observations):
     d = results - observations
-    return np.sum(d*d)
+    return np.sum(d * d)
 
-def log_residual_sum_of_squares( results, observations):
+
+def log_residual_sum_of_squares(results, observations):
     # Experimental
     # The idea is to weight more the small errors
     # compared to the big ones
     d = results - observations
-    d = d*d
-    d = np.where( d == float('-inf'), 0, d)
+    d = d * d
+    d = np.where(d == float('-inf'), 0, d)
     return np.sum(d)
 
 
@@ -146,7 +165,7 @@ def load_data():
     with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/data.csv") as fp:
 
         data = fp.read().decode("utf-8").split('\n')
-        csvreader = csv.reader(data, delimiter=',')
+        csvreader = csv.reader(data, delimiter = ',')
 
         head = next(csvreader)
         DataTuple = namedtuple("DataTuple", head)
