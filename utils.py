@@ -1,5 +1,5 @@
 from __future__ import annotations
-from enum import Enum
+from enum import IntEnum
 import numpy as np
 import csv
 from collections import namedtuple
@@ -9,7 +9,7 @@ COLORS = ['red', 'green', 'blue', 'magenta', 'purple',
           'lime', 'orange', 'chocolate', 'gray',
           'darkgreen', 'darkviolet']
 
-class ObsEnum(Enum):
+class ObsEnum(IntEnum):
      # These 5 are the one provided by the teachers.
     # Do not change them
 
@@ -45,25 +45,47 @@ class ObsEnum(Enum):
 
     def __str__(self):
         return self.name.replace("_", " ").lower()
-
+    
     @staticmethod
-    def color(t: ObsRow):
+    def color(t: ObsEnum):
         return COLORS[t.value]
 
-class StateEnum(Enum):
+class StateEnum(IntEnum):
+    # The mutually exclusive states of our SEIHCR model
     SUCEPTIBLE = 0
     EXPOSED = 1
     INFECTIOUS = 2
     HOSPITALIZED = 3
     CRITICAL = 4
     RECOVERED = 5
+    
+    # Additional deduced states 
+    INFECTED_PER_DAY = 6
+    
+    def __str__(self):
+        return self.name.replace("_", " ").lower()
+    
+    @staticmethod
+    def color(t: ObsEnum):
+        return COLORS[t.value]
 
+# The two underlying Enum classes are used to match the indexes of 
+# the "fitting and fitted values" between the observations and the states
+class ObsFitEnum(IntEnum):
+    INFECTED_PER_DAY = ObsEnum.POSITIVE.value
+    HOSPITALIZED = ObsEnum.HOSPITALIZED.value
+    CRITICAL = ObsEnum.CRITICAL.value
+    
     def __str__(self):
         return self.name.replace("_", " ").lower()
 
-    @staticmethod
-    def color(t: ObsRow):
-        return COLORS[t.value]
+class StateFitEnum(IntEnum):
+    INFECTED_PER_DAY = StateEnum.INFECTED_PER_DAY.value
+    HOSPITALIZED = StateEnum.HOSPITALIZED.value
+    CRITICAL = StateEnum.CRITICAL.value
+    
+    def __str__(self):
+        return self.name.replace("_", " ").lower()
 
 class Model:
     def __init__(self, observations):
@@ -102,8 +124,8 @@ def residuals_error(results, observations):
     return results - observations
 
 def mean_square_error(results, observations):
-    d = results - observations
-    return np.sum(d*d)
+     d = results - observations
+     return np.sum(d*d)
 
 def load_data():
     observations = []

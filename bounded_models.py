@@ -5,7 +5,7 @@ from lmfit import minimize, Parameters, report_fit
 from geneticalgorithm import geneticalgorithm as ga
 
 import matplotlib.pyplot as plt
-from utils import ObsEnum, StateEnum, Model, residuals_error, load_data
+from utils import ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, Model, residuals_error, load_data
 
 class Sarah1(Model):
 
@@ -15,9 +15,8 @@ class Sarah1(Model):
         nb_observations = observations.shape[0]
 
         self._observations = np.array(observations)
-        self._ydata = observations[np.ix_(range(nb_observations),
-                                          [ObsEnum.HOSPITALIZED.value,
-                                           ObsEnum.CRITICAL.value])]
+        self._fittingObservations = observations[np.ix_(range(nb_observations),
+                                                        list(map(int, ObsFitEnum)))]
     
         # Je n'ai pas trouvé de conditions initiales pour E0 et I0 qui m'évite le message:
         # Warning: uncertainties could not be estimated
@@ -214,9 +213,6 @@ class Sarah1(Model):
         return res
 
     def _predict(self, initial_conditions, days, params):
-        tspan = np.arange(0, days, 1)
-
-        S0, E0, I0, H0, C0, R0 = initial_conditions
         gamma1 = params['gamma1']
         gamma2 = params['gamma2']
         gamma3 = params['gamma3']
@@ -225,12 +221,26 @@ class Sarah1(Model):
         delta = params['delta']
         sigma = params['sigma']
 
-        # Integrate ODE over time span [0,days]
-        res = odeint(self._model, [S0, E0, I0, H0, C0, R0],
-                     tspan, args=(gamma1, gamma2, gamma3, beta, tau, delta, sigma))
-        return res
+        values = initial_conditions
+        states_over_days = [values + [0]]
+        S0, E0, I0, H0, C0, R0 = initial_conditions
+        for day in range(days - 1):
+            dSdt, dEdt, dIdt, dHdt, dCdt, dRdt = self._model(values, gamma1, gamma2, gamma3, beta, tau, delta, sigma)
+            S, E, I, H, C, R = values
+            infected_per_day = sigma * E 
+            S = S+dSdt
+            E = E+dEdt
+            I = I+dIdt
+            H = H+dHdt
+            C = C+dCdt
+            R = R+dRdt
+            
+            values = [S, E, I, H, C, R]
+            states_over_days.append(values + [infected_per_day])
+            
+        return np.array(states_over_days)
 
-    def _model(self, y, t, gamma1, gamma2, gamma3, beta, tau, delta, sigma):
+    def _model(self, y, gamma1, gamma2, gamma3, beta, tau, delta, sigma):
         S, E, I, H, C, R = y
         
         N = self._N
@@ -332,9 +342,9 @@ class Sarah1(Model):
         res = self._predict(self._initial_conditions, days, params)
 
         rselect = np.ix_(range(res.shape[0]), 
-                         [StateEnum.HOSPITALIZED.value, 
-                          StateEnum.CRITICAL.value])
-        return error_func(res[rselect], self._ydata).ravel()
+                         list(map(int, StateFitEnum)))
+
+        return error_func(res[rselect], self._fittingObservations).ravel()
     
 
 class Sarah1GA(Model):
@@ -345,9 +355,8 @@ class Sarah1GA(Model):
         nb_observations = observations.shape[0]
 
         self._observations = np.array(observations)
-        self._ydata = observations[np.ix_(range(nb_observations),
-                                          [ObsEnum.HOSPITALIZED.value,
-                                           ObsEnum.CRITICAL.value])]
+        self._fittingObservations = observations[np.ix_(range(nb_observations),
+                                                        list(map(int, ObsFitEnum)))]
     
         # Je n'ai pas trouvé de conditions initiales pour E0 et I0 qui m'évite le message:
         # Warning: uncertainties could not be estimated
@@ -513,9 +522,6 @@ class Sarah1GA(Model):
         return res
 
     def _predict(self, initial_conditions, days, params):
-        tspan = np.arange(0, days, 1)
-
-        S0, E0, I0, H0, C0, R0 = initial_conditions
         gamma1 = params['gamma1']
         gamma2 = params['gamma2']
         gamma3 = params['gamma3']
@@ -524,12 +530,26 @@ class Sarah1GA(Model):
         delta = params['delta']
         sigma = params['sigma']
 
-        # Integrate ODE over time span [0,days]
-        res = odeint(self._model, [S0, E0, I0, H0, C0, R0],
-                     tspan, args=(gamma1, gamma2, gamma3, beta, tau, delta, sigma))
-        return res
+        values = initial_conditions
+        states_over_days = [values + [0]]
+        S0, E0, I0, H0, C0, R0 = initial_conditions
+        for day in range(days - 1):
+            dSdt, dEdt, dIdt, dHdt, dCdt, dRdt = self._model(values, gamma1, gamma2, gamma3, beta, tau, delta, sigma)
+            S, E, I, H, C, R = values
+            infected_per_day = sigma * E 
+            S = S+dSdt
+            E = E+dEdt
+            I = I+dIdt
+            H = H+dHdt
+            C = C+dCdt
+            R = R+dRdt
+            
+            values = [S, E, I, H, C, R]
+            states_over_days.append(values + [infected_per_day])
+            
+        return np.array(states_over_days)
 
-    def _model(self, y, t, gamma1, gamma2, gamma3, beta, tau, delta, sigma):
+    def _model(self, y, gamma1, gamma2, gamma3, beta, tau, delta, sigma):
         S, E, I, H, C, R = y
         
         N = self._N
@@ -554,12 +574,11 @@ class Sarah1GA(Model):
         res = self._predict(self._initial_conditions, days, params_as_dict)
 
         rselect = np.ix_(range(res.shape[0]), 
-                         [StateEnum.HOSPITALIZED.value, 
-                          StateEnum.CRITICAL.value])
+                         list(map(int, StateFitEnum)))
 
         # The genetic algorithm uses an error represented
         # as a single float => so we can't use a vector.
-        residuals = res[rselect] - self._ydata
+        residuals = res[rselect] - self._fittingObservations
         least_squares = np.sum(residuals*residuals)
         return least_squares
 
