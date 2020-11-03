@@ -111,7 +111,6 @@ class Sarah1(Model):
         gamma1_max = 1 / min_symptomatic_time
         # "worst-case": if people do not recover and go to the H state
         gamma1_min = 0.02 # chosen arbitrarily
-        # "avg-case"
 
         # We want the probability of exiting in 1 day
         # the symptomatic period such that the probability distribution is uniformly distributed
@@ -190,14 +189,14 @@ class Sarah1(Model):
         # people that went or are in intensive care.
         cumulative_criticals_min = self._observations[-1, ObsEnum.CRITICAL.value]
         # Similarly to what we did to evaluate tau_0, we could evaluate the
-        # average ratio of people that went from HOSPITALIZED to CRITICAL:
+        # ratio of people that went from HOSPITALIZED to CRITICAL:
         # delta = cumulative_criticals / cumulative_hospitalizations
         delta_max = cumulative_criticals_max / cumulative_hospitalizations[-2]
         delta_max = max(0, min(delta_max, 1))
         delta_min = cumulative_criticals_min / cumulative_hospitalizations[-2]
         delta_min = min(max(delta_min, 0), 1)
         # The "best-case" scenario seems more probable
-        # than the "worst-case scenario", so
+        # than the "worst-case" scenario, so
         # the weights are different (0.7 and 0.3, chosen arbitrarily)
         delta_0 = delta_min * 0.7 + delta_max * 0.3
         delta_bounds = [delta_min, delta_0, delta_max]
@@ -436,20 +435,20 @@ if __name__ == "__main__":
     ms = Sarah1(rows, 1000000)
     ms.fit_parameters(residuals_error)
     #ms.fit_parameters_ga(log_residual_sum_of_squares)
-    sres = ms.predict(300)
+    sres = ms.predict(170)
 
     plt.figure()
-    for t in [StateEnum.HOSPITALIZED, StateEnum.CRITICAL]:
+    for t in [StateEnum.INFECTED_PER_DAY, StateEnum.HOSPITALIZED, StateEnum.CRITICAL]:
         plt.plot(sres[:, t.value], label=f"{t} (model)")
 
-    for u in [ObsEnum.HOSPITALIZED, ObsEnum.CRITICAL]:
+    for u in [ObsEnum.POSITIVE, ObsEnum.HOSPITALIZED, ObsEnum.CRITICAL]:
         plt.plot(rows[:, u.value], label=f"{u} (real)")
     plt.title('LM fit')
     plt.xlabel('Days')
     plt.ylabel('Individuals')
     prediction_days = 10 # prediction at prediction_days
     plt.xlim(0, days + prediction_days)
-    plt.ylim(0, 80)
+    plt.ylim(0, 150)
     plt.legend()
     plt.show()
 
