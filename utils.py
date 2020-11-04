@@ -40,11 +40,13 @@ class ObsEnum(Enum):
     # Other data series we add to the dataset
     CUMULATIVE_TESTED_POSITIVE = 7
     CUMULATIVE_TESTED = 8
+    RSURVIVOR = 9
 
     # Other data not in the dataset
-    # RECOVERED = 9
-    # SUSPECT = 10
+    # RECOVERED = 10
+    # SUSPECT = 12
     DAILY_HOSPITALIZATIONS = 11
+   
 
     def __int__(self):
         return self.value
@@ -74,6 +76,8 @@ class StateEnum(Enum):
 
     # Additional deduced states
     INFECTED_PER_DAY = 6
+    RSURVIVOR = 7
+    CUMULI = 8
 
     def __int__(self):
         return self.value
@@ -92,6 +96,7 @@ class ObsFitEnum(Enum):
     INFECTED_PER_DAY = ObsEnum.TESTED_POSITIVE.value
     HOSPITALIZED = ObsEnum.HOSPITALIZED.value
     CRITICAL = ObsEnum.CRITICAL.value
+    RSURVIVOR =  ObsEnum.RSURVIVOR.value
 
     def __int__(self):
         return self.value
@@ -104,6 +109,7 @@ class StateFitEnum(Enum):
     INFECTED_PER_DAY = StateEnum.INFECTED_PER_DAY.value
     HOSPITALIZED = StateEnum.HOSPITALIZED.value
     CRITICAL = StateEnum.CRITICAL.value
+    RSURVIVOR = StateEnum.RSURVIVOR.value
 
     def __int__(self):
         return self.value
@@ -210,6 +216,7 @@ def load_data():
 
                 positive_cumulated += t.num_positive
                 tested_cumulated += t.num_tested
-                rows.append(ir + [positive_cumulated, tested_cumulated])
+                rsurvivor = t.num_cumulative_hospitalizations - t.num_hospitalised - t.num_critical
+                rows.append(ir + [positive_cumulated, tested_cumulated,rsurvivor])
 
     return head, observations, rows

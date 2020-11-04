@@ -37,7 +37,7 @@ class Sarah1(Model):
 
         self._initial_conditions = [S0, E0, I0, H0, C0, R0]
 
-        print("initial conditiosn: ", self._initial_conditions)
+        print("initial conditions: ", self._initial_conditions)
         self._fit_params = None
 
 
@@ -76,7 +76,6 @@ class Sarah1(Model):
         H = self._observations[:, ObsEnum.HOSPITALIZED.value]
         C = self._observations[:, ObsEnum.CRITICAL.value]
         R_survivors = cumulative_hospitalizations - H - C
-
         # R(t) = cumulative_positives(t-time_IR)
         #        - cumulative_hospitalizations(t)
         #        + R_survivors(t)
@@ -89,15 +88,12 @@ class Sarah1(Model):
             - cumulative_hospitalizations[time_IR:]
             + R_survivors[time_IR:])
         R = np.concatenate((np.zeros(time_IR, np.int8), R))
-
         # R_out_HC(t) = R_survivors(t) - R_survivors(t-1)
         # For t = 0, R_out_HC(t) = 0
         R_out_HC = np.maximum(0, R_survivors[1:] - R_survivors[:-1])
         R_out_HC = np.concatenate((np.zeros(1, np.int8), R_out_HC))
-
         # R_out_I = R - R_out_HC
         R_out_I = np.maximum(0, R - R_out_HC)
-
         # I -> R : - gamma1 * I
         # R_out_I(t) = gamma1 * I(t-1)
         # gamma1 = R_out_I(t) / I(t-1)
@@ -271,8 +267,9 @@ class Sarah1(Model):
         sigma = params['sigma']
 
         values = initial_conditions
-        states_over_days = [values + [0]]
+        states_over_days = [values + [0,0,0]]
         #S0, E0, I0, H0, C0, R0 = initial_conditions
+        cumulI = 0
 
         #print("_predict : params={}".format(params))
 
@@ -285,6 +282,8 @@ class Sarah1(Model):
 
             S, E, I, H, C, R = values
             infected_per_day = sigma * E
+            R_out_HC = gamma2 * H + gamma3 * C
+            cumulI += sigma * E
             S = S+dSdt
             E = E+dEdt
             I = I+dIdt
@@ -293,8 +292,7 @@ class Sarah1(Model):
             R = R+dRdt
 
             values = [S, E, I, H, C, R]
-            states_over_days.append(values + [infected_per_day])
-
+            states_over_days.append(values + [infected_per_day,R_out_HC,cumulI])
         return np.array(states_over_days)
 
     def _model(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma):
@@ -531,10 +529,10 @@ if __name__ == "__main__":
     sres = ms.predict(170)
 
     plt.figure()
-    for t in [StateEnum.INFECTED_PER_DAY, StateEnum.HOSPITALIZED, StateEnum.CRITICAL]:
+    for t in [StateEnum.RSURVIVOR]:
         plt.plot(sres[:, t.value], label=f"{t} (model)")
 
-    for u in [ObsEnum.TESTED_POSITIVE, ObsEnum.HOSPITALIZED, ObsEnum.CRITICAL]:
+    for u in [ObsEnum.RSURVIVOR]:
         plt.plot(rows[:, u.value], label=f"{u} (real)")
 
     plt.title('LM fit')
@@ -574,43 +572,40 @@ if __name__ == "__main__":
     plt.savefig('projection_global.pdf')
     plt.show()
 
-    """
-    plt.figure()
-    for u in [ObsEnum.POSITIVE, ObsEnum.HOSPITALIZED, ObsEnum.CRITICAL]:
-        plt.plot(rows[:, u.value], label=f"{u} (real)")
-    plt.title('Simple Observations')
-    plt.xlabel('Days')
-    plt.ylabel('Individuals')
-    plt.legend()
-    plt.show()
-    """
+    # """
+    # plt.figure()
+    # for u in [ObsEnum.POSITIVE, ObsEnum.HOSPITALIZED, ObsEnum.CRITICAL]:
+    #     plt.plot(rows[:, u.value], label=f"{u} (real)")
+    # plt.title('Simple Observations')
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # plt.legend()
+    # plt.show()
+    # """
 
-    """
-    plt.figure()
-    for u in [ObsEnum.CUMULATIVE_HOSPITALIZATIONS, ObsEnum.CUMULATIVE_POSITIVE, ObsEnum.CUMULATIVE_TESTED]:
-        plt.plot(rows[:, u.value], label=f"{u} (real)")
-    plt.title('Cumulative Observations')
-    plt.xlabel('Days')
-    plt.ylabel('Individuals')
-    plt.legend()
-    plt.show()
-    """
+    # """
+    # plt.figure()
+    # for u in [ObsEnum.CUMULATIVE_HOSPITALIZATIONS, ObsEnum.CUMULATIVE_POSITIVE, ObsEnum.CUMULATIVE_TESTED]:
+    #     plt.plot(rows[:, u.value], label=f"{u} (real)")
+    # plt.title('Cumulative Observations')
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # plt.legend()
+    # plt.show()
+    # """
 
-    # -------------------------------------------------------------
-    """
-    ms = Sarah1GA(rows, 1000000)
-    ms.fit_parameters(residuals_error)
-    sres = ms.predict(50)
-
-    plt.figure()
-    for t, u in zip([StateEnum.INFECTIOUS, StateEnum.HOSPITALIZED], [ObsEnum.POSITIVE, ObsEnum.HOSPITALIZED]):
-        plt.plot(sres[:, t.value], label=f"{t} (model)")
-        plt.plot(rows[:, u.value], label=f"{u} (real)")
-
-    plt.title('GA fit')
-    plt.xlabel('Days')
-    plt.ylabel('Individuals')
-    plt.ylim(0, 1000)
-    plt.legend()
-    plt.show()
-    """
+    # # -------------------------------------------------------------
+    # """
+    # ms = Sarah1GA(rows, 1000000)
+    # ms.fit_parameters(residuals_error)
+    # sres = ms.predict(50)
+    # plt.figure()
+    # for t, u in zip([StateEnum.INFECTIOUS, StateEnum.HOSPITALIZED], [ObsEnum.POSITIVE, ObsEnum.HOSPITALIZED]):
+    #     plt.plot(sres[:, t.value], label=f"{t} (model)")
+    #     plt.plot(rows[:, u.value], label=f"{u} (real)")
+    # plt.title('GA fit')
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # plt.ylim(0, 1000)
+    # plt.legend()
+    # plt.show()
