@@ -3,9 +3,13 @@ import numpy as np
 import math
 from lmfit import minimize, Parameters, report_fit
 from geneticalgorithm import geneticalgorithm as ga
+from scipy.optimize import minimize as scipy_minimize
 
 import matplotlib.pyplot as plt
 from utils import ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, Model, residuals_error, load_data, residual_sum_of_squares, log_residual_sum_of_squares
+
+SKIP_OBS=10
+
 
 class Sarah1(Model):
 
@@ -20,6 +24,10 @@ class Sarah1(Model):
 
         # Je n'ai pas trouvé de conditions initiales pour E0 et I0 qui m'évite le message:
         # Warning: uncertainties could not be estimated
+
+        # print(self._observations[0:SKIP_OBS, ObsEnum.HOSPITALIZED.value])
+        # print(np.cumsum( self._observations[0:SKIP_OBS, ObsEnum.HOSPITALIZED.value]))
+
         E0 = 8
         I0 = 3
         H0 = self._observations[0][ObsEnum.HOSPITALIZED.value]
@@ -29,7 +37,7 @@ class Sarah1(Model):
 
         self._initial_conditions = [S0, E0, I0, H0, C0, R0]
 
-        print(self._initial_conditions)
+        print("initial conditiosn: ", self._initial_conditions)
         self._fit_params = None
 
 
@@ -51,7 +59,7 @@ class Sarah1(Model):
         # I state to go to the H state.
 
         # Compute tau = cumulative_hospitalizations / cumulative_positives
-        cumulative_positives = np.cumsum(self._observations[:, ObsEnum.POSITIVE.value])
+        cumulative_positives = np.cumsum(self._observations[:, ObsEnum.TESTED_POSITIVE.value])
         cumulative_hospitalizations = self._observations[:, ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value]
         # There is a difference of 1 between the indexes because to have the possibility
         # to go from one state to another, at least 1 day must pass. We can not go from
@@ -174,6 +182,9 @@ class Sarah1(Model):
         beta_0 = R0 / infectious_time
         beta_min = R0_min / max_incubation_time
         beta_max = R0_max / min_incubation_time
+
+        beta_min,beta_max = 0.1, 0.9
+
         beta_bounds = [beta_min, beta_0, beta_max]
 
         # ------------------------------------------------------------
@@ -229,7 +240,9 @@ class Sarah1(Model):
 
         return params
 
+
     def fit_parameters(self, error_func):
+        # Fit parameters using lmfit package
 
         params = self.get_initial_parameters()
         result = minimize(self._plumb_lmfit,
@@ -259,11 +272,17 @@ class Sarah1(Model):
 
         values = initial_conditions
         states_over_days = [values + [0]]
-        S0, E0, I0, H0, C0, R0 = initial_conditions
+        #S0, E0, I0, H0, C0, R0 = initial_conditions
+
+        #print("_predict : params={}".format(params))
 
         # days - 1 because day 0 is the initial conditions
         for day in range(days - 1):
-            dSdt, dEdt, dIdt, dHdt, dCdt, dRdt = self._model(values, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma)
+            m = self._model(values, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma)
+            #print("_predict : values={}".format(values))
+            #print("_predict : \t\tdeltas={}".format(m))
+            dSdt, dEdt, dIdt, dHdt, dCdt, dRdt = m
+
             S, E, I, H, C, R = values
             infected_per_day = sigma * E
             S = S+dSdt
@@ -278,8 +297,8 @@ class Sarah1(Model):
 
         return np.array(states_over_days)
 
-    def _model(self, y, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma):
-        S, E, I, H, C, R = y
+    def _model(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma):
+        S, E, I, H, C, R = ys
 
         N = self._N
 
@@ -367,14 +386,22 @@ class Sarah1(Model):
 
         # Le système d'équations serait le suivant:
 
-        dSdt = -beta * S * I / N
-        dEdt = beta * S * I / N - sigma * E - gamma4 * E
+
+        #try:
+        dSdt = -beta * S * E / N  # Ssceptible people don't recover.
+        # except FloatingPointError as ex:
+        #     print(f"gtocha! {ys}")
+        #     print(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma)
+        #     raise ex
+
+        dEdt = +beta * S * E / N - sigma * E - gamma4 * E
         dIdt = sigma * E - gamma1 * I - tau * I
         dHdt = tau * I - gamma2 * H - delta * H
         dCdt = delta * H - gamma3 * C
         dRdt = gamma1 * I + gamma2 * H + gamma3 * C + gamma4 * E
 
         return [dSdt, dEdt, dIdt, dHdt, dCdt, dRdt]
+
 
     def _plumb_lmfit(self, params, days, error_func):
         assert error_func == residuals_error, "lmfit requires residuals errors"
@@ -385,6 +412,68 @@ class Sarah1(Model):
                          list(map(int, StateFitEnum)))
 
         return error_func(res[rselect], self._fittingObservations).ravel()
+
+
+    def fit_parameters_bfgs(self, error_func):
+        # L-BFGS-B accepts bounds
+
+        np.seterr(all='raise')
+
+        params = self.get_initial_parameters()
+        bounds = np.array([(p.min, p.max) for p_name, p in params.items()])
+
+        #self._error_func = error_func
+
+        for p_name, p in params.items():
+            print( "{:10s} [{:.2f} - {:.2f}]".format(p_name,p.min, p.max))
+
+        x0 = [ p.value for p_name, p in params.items() ]
+        print( "initial guess for params: {}".format(x0))
+
+        #exit()
+        res = scipy_minimize(self._plumb_scipy,
+                             x0=x0,
+                             method='L-BFGS-B',
+                             bounds=bounds, args=(error_func,) )
+
+        print(res)
+
+        self._fit_params = self._params_array_to_dict(res.x)
+
+        for p_name, p in params.items():
+            print( "{:10s} [{:.2f} - {:.2f}] : {:.2f}".format(p_name,p.min, p.max,self._fit_params[p_name]))
+
+
+
+    def _plumb_scipy(self, params, error_func):
+
+        days = len(self._observations)
+
+        # _predict function prefers params as a dictionary
+        # so we convert.
+        params_as_dict = self._params_array_to_dict(params)
+
+        # print("\n_plumb_scipy : params: {}".format(params))
+        # print("_plumb_scipy : init_cond: {}".format(self._initial_conditions))
+        res = self._predict(self._initial_conditions,
+                            days, params_as_dict)
+        # print("back from predict")
+
+        # INFECTED_PER_DAY = StateEnum.INFECTED_PER_DAY.value
+        # HOSPITALIZED = StateEnum.HOSPITALIZED.value
+        # CRITICAL = StateEnum.CRITICAL.value
+
+        rselect = np.ix_(range(res.shape[0]),
+                         list(map(int, StateFitEnum)))
+
+        # The genetic algorithm uses an error represented
+        # as a single float.
+
+        #print( res[rselect])
+        #return error_func(res[rselect], self._fittingObservations)
+
+        return error_func(res[rselect][SKIP_OBS:,:],
+                          self._fittingObservations[SKIP_OBS:,:])
 
     def fit_parameters_ga(self, error_func):
         # Fit parameters using a genetic algorithm
@@ -402,6 +491,9 @@ class Sarah1(Model):
 
         self._fit_params = self._params_array_to_dict(
             gamodel.output_dict['variable'])
+
+        for p_name, p in params.items():
+            print( "{:10s} [{:.2f} - {:.2f}] : {:.2f}".format(p_name,p.min, p.max,self._fit_params[p_name]))
 
     def _params_array_to_dict(self, params):
         return dict(
@@ -433,16 +525,18 @@ if __name__ == "__main__":
     days = len(observations)
 
     ms = Sarah1(rows, 1000000)
-    ms.fit_parameters(residuals_error)
+    #ms.fit_parameters(residuals_error)
     #ms.fit_parameters_ga(log_residual_sum_of_squares)
+    ms.fit_parameters_bfgs(residual_sum_of_squares)
     sres = ms.predict(170)
 
     plt.figure()
     for t in [StateEnum.INFECTED_PER_DAY, StateEnum.HOSPITALIZED, StateEnum.CRITICAL]:
         plt.plot(sres[:, t.value], label=f"{t} (model)")
 
-    for u in [ObsEnum.POSITIVE, ObsEnum.HOSPITALIZED, ObsEnum.CRITICAL]:
+    for u in [ObsEnum.TESTED_POSITIVE, ObsEnum.HOSPITALIZED, ObsEnum.CRITICAL]:
         plt.plot(rows[:, u.value], label=f"{u} (real)")
+
     plt.title('LM fit')
     plt.xlabel('Days')
     plt.ylabel('Individuals')
@@ -450,6 +544,7 @@ if __name__ == "__main__":
     plt.xlim(0, days + prediction_days)
     plt.ylim(0, 150)
     plt.legend()
+    plt.savefig('data_fit.pdf')
     plt.show()
 
     plt.figure()
@@ -460,16 +555,23 @@ if __name__ == "__main__":
     plt.xlabel('Days')
     plt.ylabel('Individuals')
     plt.legend()
+    plt.savefig('projection_zoom.pdf')
     plt.show()
 
     plt.figure()
     for t in [StateEnum.SUCEPTIBLE, StateEnum.INFECTIOUS, StateEnum.HOSPITALIZED,
               StateEnum.CRITICAL, StateEnum.RECOVERED]:
         plt.plot(sres[:, t.value], label=f"{t} (model)")
+
+    ipd = sres[:, StateEnum.INFECTED_PER_DAY.value]
+    plt.plot( np.cumsum(ipd),
+              label="Infected (model)")
+
     plt.title('States')
     plt.xlabel('Days')
     plt.ylabel('Individuals')
     plt.legend()
+    plt.savefig('projection_global.pdf')
     plt.show()
 
     """

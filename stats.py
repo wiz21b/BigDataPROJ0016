@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     x = rows[ObsEnum.DAYS.value]
 
-    for t in [ObsEnum.CUMULATIVE_POSITIVE,
+    for t in [ObsEnum.CUMULATIVE_TESTED_POSITIVE,
               ObsEnum.CUMULATIVE_TESTED,
               ObsEnum.CUMULATIVE_HOSPITALIZATIONS]:
 
@@ -24,8 +24,6 @@ if __name__ == "__main__":
         poly1d_fn = np.poly1d(coef)
         plt.plot(x,poly1d_fn(x),'--', color=ObsEnum.color(t))
 
-    daily_hospitalizations = rows[ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value][1:] - rows[ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value][0:-1]
-    daily_hospitalizations = np.insert(daily_hospitalizations, 0, 0)
 
     plt.title("Cumulative observations")
     plt.xlabel('Days')
@@ -38,7 +36,8 @@ if __name__ == "__main__":
 
     # --------------------------------------------------------
     plt.figure()
-    for t in [ObsEnum.POSITIVE,
+
+    for t in [ObsEnum.TESTED_POSITIVE,
               ObsEnum.TESTED]:
         y = rows[t.value]
         plt.plot(y, label=f"{t}", color=ObsEnum.color(t))
@@ -46,10 +45,12 @@ if __name__ == "__main__":
         poly1d_fn = np.poly1d(coef)
         plt.plot(x,poly1d_fn(x),'--', color=ObsEnum.color(t))
 
+    daily_hospitalizations = rows[ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value][1:] - rows[ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value][0:-1]
+    daily_hospitalizations = np.insert(daily_hospitalizations, 0, 0)
 
-    t = ObsEnum.CUMULATIVE_HOSPITALIZATIONS
+    t = ObsEnum.DAILY_HOSPITALIZATIONS
     y = daily_hospitalizations
-    plt.plot(daily_hospitalizations, label=f"Hospitalizations", color=ObsEnum.color(t))
+    plt.plot(daily_hospitalizations, label=str(t), color=ObsEnum.color(t))
     coef = np.polyfit(x,y,1)
     poly1d_fn = np.poly1d(coef)
     plt.plot(x,poly1d_fn(x),'--', color=ObsEnum.color(t))
@@ -64,13 +65,21 @@ if __name__ == "__main__":
 
     # --------------------------------------------------------
     plt.figure()
-    y = rows[ObsEnum.POSITIVE.value] / rows[ObsEnum.TESTED.value]
+    y = rows[ObsEnum.TESTED_POSITIVE.value] / rows[ObsEnum.TESTED.value]
     print(y)
     y[0] = np.mean(y[1:])
     plt.plot(y, label=f"Positive/tested ratio")
     coef = np.polyfit(x,y,1)
     poly1d_fn = np.poly1d(coef)
-    plt.plot(x,poly1d_fn(x),'--')
+    #plt.plot(x,poly1d_fn(x),'--')
+
+    y = rows[ObsEnum.CUMULATIVE_TESTED_POSITIVE.value] / rows[ObsEnum.CUMULATIVE_TESTED.value]
+    print(y)
+    y[0] = np.mean(y[1:])
+    plt.plot(y, label=f"Cumulative positive/tested ratio")
+    coef = np.polyfit(x,y,1)
+    poly1d_fn = np.poly1d(coef)
+    #plt.plot(x,poly1d_fn(x),'--')
 
     plt.ylim(0,1)
     plt.xlabel('Days')
@@ -81,14 +90,14 @@ if __name__ == "__main__":
 
     # --------------------------------------------------------
     plt.figure()
-    a = rows[ObsEnum.CUMULATIVE_POSITIVE.value]
+    a = rows[ObsEnum.CUMULATIVE_TESTED_POSITIVE.value]
     b = rows[ObsEnum.HOSPITALIZED.value]
     plt.plot(a / b, label=f"cumulative positive/hospitalized ratio")
     a = rows[ObsEnum.CUMULATIVE_TESTED.value]
     b = rows[ObsEnum.HOSPITALIZED.value]
     plt.plot(a / b, label=f"cumulative tested/hospitalized ratio")
 
-    plt.plot(rows[ObsEnum.CUMULATIVE_POSITIVE.value] / rows[ObsEnum.CUMULATIVE_TESTED.value], label=f"cumulative positive/tested ratio")
+    plt.plot(rows[ObsEnum.CUMULATIVE_TESTED_POSITIVE.value] / rows[ObsEnum.CUMULATIVE_TESTED.value], label=f"cumulative positive/tested ratio")
 
     plt.xlabel('Days')
     plt.ylabel('Ratio')

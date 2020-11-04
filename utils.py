@@ -10,6 +10,7 @@ COLORS = ['red', 'green', 'blue', 'magenta', 'purple',
           'darkgreen', 'darkviolet']
 
 
+
 class ObsEnum(Enum):
     # These 6 are the one provided by the teachers.
     # Do not change them
@@ -17,7 +18,7 @@ class ObsEnum(Enum):
     DAYS = 0
 
     # number of individuals tested positive on this day.
-    POSITIVE = 1
+    TESTED_POSITIVE = 1
 
     # number of tests performed during the last day.
     TESTED = 2
@@ -37,21 +38,28 @@ class ObsEnum(Enum):
     FATALITIES = 6
 
     # Other data series we add to the dataset
-    CUMULATIVE_POSITIVE = 7
+    CUMULATIVE_TESTED_POSITIVE = 7
     CUMULATIVE_TESTED = 8
 
     # Other data not in the dataset
     # RECOVERED = 9
     # SUSPECT = 10
+    DAILY_HOSPITALIZATIONS = 11
 
     def __int__(self):
         return self.value
 
     def __str__(self):
+        if self in STRINGS:
+            return STRINGS[self]
+
         return self.name.replace("_", " ").lower()
 
     @staticmethod
     def color(t: ObsEnum):
+        if t in COLORS_DICT:
+            return COLORS_DICT[t]
+
         return COLORS[t.value]
 
 
@@ -81,7 +89,7 @@ class StateEnum(Enum):
 # The two underlying Enum classes are used to match the indexes of the
 # "fitting and fitted values" between the observations and the states
 class ObsFitEnum(Enum):
-    INFECTED_PER_DAY = ObsEnum.POSITIVE.value
+    INFECTED_PER_DAY = ObsEnum.TESTED_POSITIVE.value
     HOSPITALIZED = ObsEnum.HOSPITALIZED.value
     CRITICAL = ObsEnum.CRITICAL.value
 
@@ -102,6 +110,23 @@ class StateFitEnum(Enum):
 
     def __str__(self):
         return self.name.replace("_", " ").lower()
+
+
+STRINGS = { ObsEnum.TESTED_POSITIVE : "Tested positive / day",
+            ObsEnum.TESTED : "Tested / day",
+            ObsEnum.DAILY_HOSPITALIZATIONS : "Hospitalized / day",
+            ObsEnum.CUMULATIVE_TESTED_POSITIVE : "Cumulative tested positive",
+            ObsEnum.CUMULATIVE_TESTED : "Cumulative tested",
+            ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "Cumulative hospitalizations",
+           }
+
+COLORS_DICT = { ObsEnum.TESTED_POSITIVE : 'green',
+                ObsEnum.CUMULATIVE_TESTED_POSITIVE : "green",
+                ObsEnum.TESTED : 'blue',
+                ObsEnum.CUMULATIVE_TESTED : "blue",
+                ObsEnum.DAILY_HOSPITALIZATIONS : 'purple',
+                ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "purple"
+               }
 
 
 class Model:
@@ -151,7 +176,11 @@ def log_residual_sum_of_squares(results, observations):
     # The idea is to weight more the small errors
     # compared to the big ones
     d = results - observations
-    d = d * d
+    try:
+        d = d * d
+    except:
+        pass
+
     d = np.where(d == float('-inf'), 0, d)
     return np.sum(d)
 
@@ -169,6 +198,9 @@ def load_data():
 
         head = next(csvreader)
         DataTuple = namedtuple("DataTuple", head)
+
+        # for i in range(5):
+        #     next(csvreader)
 
         for r in csvreader:
             if r:
