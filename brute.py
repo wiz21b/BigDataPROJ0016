@@ -40,6 +40,10 @@ for beta in r(P1):
         for gamma1 in r(P3):
             params[P3].set(value=gamma1)
 
+            # I basically reuse the methods of the model
+            # to predict error based on the parameters
+            # I generate in the loops above.
+
             res = model._predict(model._initial_conditions,
                                  len(observations),
                                  params)
