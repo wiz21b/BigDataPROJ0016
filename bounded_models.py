@@ -166,24 +166,15 @@ class Sarah1(Model):
         # TO DISCUSS: For a SEIR model: a more complex formula of R0
         # found at https://en.wikipedia.org/wiki/Basic_reproduction_number
         # could be used later
-        #R0_min = 1 # or else the virus is not growing exponentially
+        R0_min = 0
         #R0_max = 18 # the most virulent disease of all time: measles
-        #R0_max = 2.8 * 1.5 # the most virulent influenza pandemic
+        R0_max = 3 # the most virulent influenza pandemic
         # and we were told that covid-20 looked similar to influenza
-        # We multiply by 1.5 (arbitrary choice) because covid-20 might
-        # become more virulent than the most virulent influenza pandemic
-        # (which is the case for covid-19 with a R0 that got to 3-4 at peak period)
-        #R0 = (R0_min + R0_max) / 2
-        #infectious_time = (min_incubation_time + max_incubation_time) / 2
-        #beta_0 = R0 / infectious_time
-        #beta_min = R0_min / max_incubation_time
-        #beta_max = R0_max / min_incubation_time
-
-        beta_0 = 0.5  # on average each exposed person in contact with a susceptible person
-        # will infect him with a probability 1/2
-        beta_min = 0.01  # on average each exposed person in contact with a susceptible person
-        # will infect him with a probability 1/100
-        beta_max = 1  # on average each exposed person in contact with a susceptible person will infect him
+        R0 = (R0_min + R0_max) / 2
+        infectious_time = (min_incubation_time + max_incubation_time) / 2
+        beta_0 = R0 / infectious_time
+        beta_min = R0_min / max_incubation_time
+        beta_max = R0_max / min_incubation_time
 
         beta_bounds = [beta_min, beta_0, beta_max]
 
@@ -230,7 +221,31 @@ class Sarah1(Model):
         # "avg-case":
         sigma_0 = (sigma_max + sigma_min) / 2
         sigma_bounds = [sigma_min, sigma_0, sigma_max]
+        """
+        limit1_bounds = [gamma1_bounds[0], (gamma1_bounds[0] + 1) / 2, 1]
+        limit2_bounds = [gamma2_bounds[0], (gamma2_bounds[0] + 1) / 2, 1]
+        limit3_bounds = [gamma4_bounds[0], (gamma4_bounds[0] + 1) / 2, 1]
+        bounds = [limit1_bounds, limit2_bounds, limit3_bounds, gamma1_bounds, gamma2_bounds, gamma3_bounds,
+                  gamma4_bounds, beta_bounds, tau_bounds, delta_bounds, sigma_bounds]
+        param_names = ['limit1', 'limit2', 'limit3', 'gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta',
+                       'sigma']
+        params = Parameters()
 
+        for param_str, param_bounds in zip(param_names, bounds):
+            if param_str == 'tau':
+                params.add(param_str, value = param_bounds[1], min = param_bounds[0], max = param_bounds[2],
+                           expr = 'limit1 - gamma1')
+            elif param_str == 'delta':
+                params.add(param_str, value = param_bounds[1], min = param_bounds[0], max = param_bounds[2],
+                           expr = 'limit2 - gamma2')
+            elif param_str == 'sigma':
+                params.add(param_str, value = param_bounds[1], min = param_bounds[0], max = param_bounds[2],
+                           expr = 'limit3 - gamma4')
+            else:
+                params.add(param_str, value = param_bounds[1], min = param_bounds[0], max = param_bounds[2])
+
+        return params
+        """
         bounds = [gamma1_bounds, gamma2_bounds, gamma3_bounds, gamma4_bounds, beta_bounds, tau_bounds, delta_bounds, sigma_bounds]
         param_names = ['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma']
         params = Parameters()
