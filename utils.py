@@ -96,7 +96,7 @@ class ObsFitEnum(Enum):
     INFECTED_PER_DAY = ObsEnum.TESTED_POSITIVE.value
     HOSPITALIZED = ObsEnum.HOSPITALIZED.value
     CRITICAL = ObsEnum.CRITICAL.value
-    RSURVIVOR =  ObsEnum.RSURVIVOR.value
+    RSURVIVOR = ObsEnum.RSURVIVOR.value
 
     def __int__(self):
         return self.value

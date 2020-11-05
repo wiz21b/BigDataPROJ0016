@@ -166,20 +166,24 @@ class Sarah1(Model):
         # TO DISCUSS: For a SEIR model: a more complex formula of R0
         # found at https://en.wikipedia.org/wiki/Basic_reproduction_number
         # could be used later
-        R0_min = 1 # or else the virus is not growing exponentially
+        #R0_min = 1 # or else the virus is not growing exponentially
         #R0_max = 18 # the most virulent disease of all time: measles
-        R0_max = 2.8 * 1.5 # the most virulent influenza pandemic
+        #R0_max = 2.8 * 1.5 # the most virulent influenza pandemic
         # and we were told that covid-20 looked similar to influenza
         # We multiply by 1.5 (arbitrary choice) because covid-20 might
         # become more virulent than the most virulent influenza pandemic
         # (which is the case for covid-19 with a R0 that got to 3-4 at peak period)
-        R0 = (R0_min + R0_max) / 2
-        infectious_time = (min_incubation_time + max_incubation_time) / 2
-        beta_0 = R0 / infectious_time
-        beta_min = R0_min / max_incubation_time
-        beta_max = R0_max / min_incubation_time
+        #R0 = (R0_min + R0_max) / 2
+        #infectious_time = (min_incubation_time + max_incubation_time) / 2
+        #beta_0 = R0 / infectious_time
+        #beta_min = R0_min / max_incubation_time
+        #beta_max = R0_max / min_incubation_time
 
-        beta_min,beta_max = 0.1, 0.9
+        beta_0 = 0.5  # on average each exposed person in contact with a susceptible person
+        # will infect him with a probability 1/2
+        beta_min = 0.01  # on average each exposed person in contact with a susceptible person
+        # will infect him with a probability 1/100
+        beta_max = 1  # on average each exposed person in contact with a susceptible person will infect him
 
         beta_bounds = [beta_min, beta_0, beta_max]
 
@@ -371,8 +375,8 @@ class Sarah1(Model):
 
         # Modèle SEIHCR
         # Liens et paramètres:
-        # S -> E : - (beta * S * I )/ N
-        # E <- S : (beta * S * I )/ N
+        # S -> E : - (beta * S * E )/ N
+        # E <- S : (beta * S * E )/ N
         # E -> I : - sigma * E
         # I <- E : sigma * E
         # I -> R : - gamma1 * I |&| I -> H : - tau * I
@@ -385,14 +389,9 @@ class Sarah1(Model):
         # Le système d'équations serait le suivant:
 
 
-        #try:
-        dSdt = -beta * S * E / N  # Ssceptible people don't recover.
-        # except FloatingPointError as ex:
-        #     print(f"gtocha! {ys}")
-        #     print(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma)
-        #     raise ex
 
-        dEdt = +beta * S * E / N - sigma * E - gamma4 * E
+        dSdt = -beta * S * E / N
+        dEdt = beta * S * E / N - sigma * E - gamma4 * E
         dIdt = sigma * E - gamma1 * I - tau * I
         dHdt = tau * I - gamma2 * H - delta * H
         dCdt = delta * H - gamma3 * C
@@ -529,47 +528,47 @@ if __name__ == "__main__":
     sres = ms.predict(170)
 
     plt.figure()
-    for t in [StateEnum.RSURVIVOR]:
+    for t in [StateEnum.RSURVIVOR, StateEnum.INFECTED_PER_DAY, StateEnum.HOSPITALIZED, StateEnum.CRITICAL]:
         plt.plot(sres[:, t.value], label=f"{t} (model)")
 
-    for u in [ObsEnum.RSURVIVOR]:
+    for u in [ObsEnum.RSURVIVOR, ObsEnum.TESTED_POSITIVE, ObsEnum.HOSPITALIZED, ObsEnum.CRITICAL]:
         plt.plot(rows[:, u.value], label=f"{u} (real)")
 
-    plt.title('LM fit')
+    plt.title('Curve Fitting')
     plt.xlabel('Days')
     plt.ylabel('Individuals')
     prediction_days = 10 # prediction at prediction_days
     plt.xlim(0, days + prediction_days)
     plt.ylim(0, 150)
     plt.legend()
-    plt.savefig('data_fit.pdf')
+    plt.savefig(f'data_fit_{days}_days.pdf')
     plt.show()
 
     plt.figure()
-    for t in [StateEnum.INFECTIOUS, StateEnum.HOSPITALIZED, StateEnum.CRITICAL]:
+    for t in [StateEnum.EXPOSED, StateEnum.INFECTIOUS, StateEnum.HOSPITALIZED, StateEnum.CRITICAL]:
         plt.plot(sres[:, t.value], label=f"{t} (model)")
 
-    plt.title('Infectious - Hospitalized - Critical')
+    plt.title('Exposed - Infectious - Hospitalized - Critical')
     plt.xlabel('Days')
     plt.ylabel('Individuals')
     plt.legend()
-    plt.savefig('projection_zoom.pdf')
+    plt.savefig(f'projection_zoom_{days}_days.pdf')
     plt.show()
 
     plt.figure()
-    for t in [StateEnum.SUCEPTIBLE, StateEnum.INFECTIOUS, StateEnum.HOSPITALIZED,
+    for t in [StateEnum.SUCEPTIBLE, StateEnum.EXPOSED, StateEnum.INFECTIOUS, StateEnum.HOSPITALIZED,
               StateEnum.CRITICAL, StateEnum.RECOVERED]:
         plt.plot(sres[:, t.value], label=f"{t} (model)")
 
-    ipd = sres[:, StateEnum.INFECTED_PER_DAY.value]
-    plt.plot( np.cumsum(ipd),
-              label="Infected (model)")
+    #ipd = sres[:, StateEnum.INFECTED_PER_DAY.value]
+    #plt.plot( np.cumsum(ipd),
+              #label="Infected (model)")
 
     plt.title('States')
     plt.xlabel('Days')
     plt.ylabel('Individuals')
     plt.legend()
-    plt.savefig('projection_global.pdf')
+    plt.savefig(f'projection_global_{days}_days.pdf')
     plt.show()
 
     # """
@@ -593,19 +592,3 @@ if __name__ == "__main__":
     # plt.legend()
     # plt.show()
     # """
-
-    # # -------------------------------------------------------------
-    # """
-    # ms = Sarah1GA(rows, 1000000)
-    # ms.fit_parameters(residuals_error)
-    # sres = ms.predict(50)
-    # plt.figure()
-    # for t, u in zip([StateEnum.INFECTIOUS, StateEnum.HOSPITALIZED], [ObsEnum.POSITIVE, ObsEnum.HOSPITALIZED]):
-    #     plt.plot(sres[:, t.value], label=f"{t} (model)")
-    #     plt.plot(rows[:, u.value], label=f"{u} (real)")
-    # plt.title('GA fit')
-    # plt.xlabel('Days')
-    # plt.ylabel('Individuals')
-    # plt.ylim(0, 1000)
-    # plt.legend()
-    # plt.show()
