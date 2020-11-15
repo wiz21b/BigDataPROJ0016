@@ -18,13 +18,13 @@ class ObsEnum(Enum):
     DAYS = 0
 
     # number of individuals tested positive on this day.
-    TESTED_POSITIVE = 1
+    NUM_POSITIVE = 1
 
     # number of tests performed during the last day.
     TESTED = 2
 
     # number of individuals currently at the hospital.
-    HOSPITALIZED = 3
+    NUM_HOSPITALIZED = 3
 
     # cumulative number of individuals who were or are
     # being hospitalized.
@@ -32,10 +32,10 @@ class ObsEnum(Enum):
 
     # number of individuals currently in an ICU (criticals
     # are not counted as part of num_hospitalized).
-    CRITICAL = 5
+    NUM_CRITICAL = 5
 
     # cumulative number of deaths
-    FATALITIES = 6
+    NUM_FATALITIES = 6
 
     # Other data series we add to the dataset
     CUMULATIVE_TESTED_POSITIVE = 7
@@ -69,15 +69,17 @@ class StateEnum(Enum):
     # The mutually exclusive states of our SEIHCR model
     SUCEPTIBLE = 0
     EXPOSED = 1
-    INFECTIOUS = 2
-    HOSPITALIZED = 3
-    CRITICAL = 4
-    RECOVERED = 5
+    ASYMPTOMATIQUE = 2
+    SYMPTOMATIQUE = 3
+    HOSPITALIZED = 4
+    CRITICAL = 5
+    FATALITIES = 6
+    RECOVERED = 7
 
     # Additional deduced states
-    INFECTED_PER_DAY = 6
-    RSURVIVOR = 7
-    CUMULI = 8
+    INFECTED_PER_DAY = 8
+    RSURVIVOR = 9
+    CUMULI = 10
 
     def __int__(self):
         return self.value
@@ -93,10 +95,9 @@ class StateEnum(Enum):
 # The two underlying Enum classes are used to match the indexes of the
 # "fitting and fitted values" between the observations and the states
 class ObsFitEnum(Enum):
-    INFECTED_PER_DAY = ObsEnum.TESTED_POSITIVE.value
-    HOSPITALIZED = ObsEnum.HOSPITALIZED.value
-    CRITICAL = ObsEnum.CRITICAL.value
-    RSURVIVOR = ObsEnum.RSURVIVOR.value
+    HOSPITALIZED = ObsEnum.NUM_HOSPITALIZED.value
+    CRITICAL = ObsEnum.NUM_CRITICAL.value
+    RSURVIVOR =  ObsEnum.RSURVIVOR.value
 
     def __int__(self):
         return self.value
@@ -106,7 +107,6 @@ class ObsFitEnum(Enum):
 
 
 class StateFitEnum(Enum):
-    INFECTED_PER_DAY = StateEnum.INFECTED_PER_DAY.value
     HOSPITALIZED = StateEnum.HOSPITALIZED.value
     CRITICAL = StateEnum.CRITICAL.value
     RSURVIVOR = StateEnum.RSURVIVOR.value
@@ -118,7 +118,7 @@ class StateFitEnum(Enum):
         return self.name.replace("_", " ").lower()
 
 
-STRINGS = { ObsEnum.TESTED_POSITIVE : "Tested positive / day",
+STRINGS = { ObsEnum.NUM_POSITIVE : "num positive",
             ObsEnum.TESTED : "Tested / day",
             ObsEnum.DAILY_HOSPITALIZATIONS : "Hospitalized / day",
             ObsEnum.CUMULATIVE_TESTED_POSITIVE : "Cumulative tested positive",
@@ -126,7 +126,7 @@ STRINGS = { ObsEnum.TESTED_POSITIVE : "Tested positive / day",
             ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "Cumulative hospitalizations",
            }
 
-COLORS_DICT = { ObsEnum.TESTED_POSITIVE : 'green',
+COLORS_DICT = { ObsEnum.NUM_POSITIVE : 'green',
                 ObsEnum.CUMULATIVE_TESTED_POSITIVE : "green",
                 ObsEnum.TESTED : 'blue',
                 ObsEnum.CUMULATIVE_TESTED : "blue",
@@ -213,10 +213,9 @@ def load_data():
                 ir = [int(x) for x in r]
                 t = DataTuple(*ir)
                 observations.append(t)
-
                 positive_cumulated += t.num_positive
                 tested_cumulated += t.num_tested
-                rsurvivor = t.num_cumulative_hospitalizations - t.num_hospitalised - t.num_critical
+                rsurvivor = t.num_cumulative_hospitalizations - t.num_hospitalised - t.num_critical -t.num_fatalities
                 rows.append(ir + [positive_cumulated, tested_cumulated,rsurvivor])
 
     return head, observations, rows
