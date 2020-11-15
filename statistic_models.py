@@ -67,8 +67,8 @@ class Sarah1(Model):
         # There is a difference of 1 between the indexes because to have the possibility
         # to go from one state to another, at least 1 day must pass. We can not go from
         # infected to hospitalized the same day.
-        tau_0 = cumulative_hospitalizations[-1] / cumulative_positives[-2]
-        tau_bounds = [tau_0 * (1 - error_margin), tau_0, max(1, tau_0 * (1 + error_margin))]
+        tau_0 = (0.1+0.25)/2
+        tau_bounds = [1/10, tau_0, 1/4]
 
         # "best-case": if people recover all in min_symptomatic_time
         gamma1_max = 1
@@ -88,13 +88,13 @@ class Sarah1(Model):
         # ------------------------------------------------------------
         # gamma4 : the rate at which people leave the E state to go to the R state
         # "best-case": if people recover all directly after min_incubation_time
-        gamma4_max = 1 / min_incubation_time
+        gamma4_max = 1
         # "worst-case": if even after max_incubation_time, people do not recover because they are
         # asymptomatic for a long time, corresponding exactly to the time a symptomatic who is never hospitalised
         # would take to recover (max_incubation_time + max_symptomatic_time).
-        gamma4_min = 1 / (max_incubation_time + max_symptomatic_time)
+        gamma4_min = 0.02
         # "avg-case":
-        gamma4_0 = (gamma4_max + gamma4_min) / 2
+        gamma4_0 = 0.2
         gamma4_bounds = [gamma4_min, gamma4_0, gamma4_max]
 
        
@@ -121,7 +121,7 @@ class Sarah1(Model):
         
         # For the period of incubation
         rho_max = 1
-        rho_0 = 1/3
+        rho_0 = 3/5
         rho_min = 1/5
         rho_bounds = [rho_min,rho_0,rho_max]
         
@@ -132,8 +132,8 @@ class Sarah1(Model):
         theta_bounds = [theta_min,theta_0,theta_max]
         
         
-        sigma_max = 1/4
-        sigma_min = 1/20 # = 1 / 100
+        sigma_max = 1
+        sigma_min = 0.02 # = 1 / 100
         # "avg-case": 
         sigma_0 = (sigma_max + sigma_min) / 2
         sigma_bounds = [sigma_min, sigma_0, sigma_max]
