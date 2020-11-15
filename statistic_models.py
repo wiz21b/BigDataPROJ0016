@@ -71,11 +71,11 @@ class Sarah1(Model):
         tau_bounds = [tau_0 * (1 - error_margin), tau_0, max(1, tau_0 * (1 + error_margin))]
 
         # "best-case": if people recover all in min_symptomatic_time
-        gamma1_max = 1
+        gamma1_max = 1/ min_symptomatic_time
         # "worst-case": if people do not recover and go to the H state
         gamma1_min = 0.02 # chosen arbitrarily
 
-        gamma1_0 = 0.2
+        gamma1_0 = 1/(max_symptomatic_time + min_symptomatic_time)
 
         gamma1_bounds = [gamma1_min, gamma1_0, gamma1_max]
 
@@ -245,7 +245,7 @@ class Sarah1(Model):
 
             S, E, A, SP, H, C,F, R = values
 
-            beta_S = np.ceil(beta * S)
+            beta_S = self.binomial_dist(beta, 0, 1, S)
             rho_E = self.binomial_dist(rho, 0, 1, E)
             sigma_A = self.binomial_dist(sigma, 0, 1, A)
             gamma4_A = self.binomial_dist(gamma4, 0, 1, A)
