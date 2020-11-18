@@ -288,14 +288,20 @@ class Sarah1(Model):
         return np.array(states_over_days)
 
     def binomial_dist(self, value, bound_min, bound_max, population):
-        moving_population = 0
-        #print("population {}".format(population))
-        for i in range(int(population)):
-            proba = random.uniform(bound_min,bound_max)
-            if proba < value:
-                moving_population += 1
 
-        return moving_population
+        if population > 0:
+            rnd = np.random.uniform(bound_min,bound_max,int(population))
+            return rnd[ rnd < value ].shape[0]
+        else:
+
+            moving_population = 0
+            #print("population {}".format(population))
+            for i in range(int(population)):
+                proba = random.uniform(bound_min,bound_max)
+                if proba < value:
+                    moving_population += 1
+
+            return moving_population
 
 
     def _stat_model(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta):
@@ -456,6 +462,8 @@ if __name__ == "__main__":
     #ms.fit_parameters(residuals_error)
     #ms.fit_parameters_ga(log_residual_sum_of_squares)
     ms.fit_parameters_bfgs(residual_sum_of_squares)
+
+    print("Making prediction")
     sres = ms.stat_predict(250)
 
     plt.figure()
