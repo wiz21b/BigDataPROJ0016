@@ -79,7 +79,7 @@ class Sarah1(Model):
 
         gamma1_bounds = [gamma1_min, gamma1_0, gamma1_max]
 
-        
+
         gamma2_0 = 0.2 # arbitrary choice
         gamma3_0 = 0.2 # arbitrary choice
         gamma2_bounds = [0.02, gamma2_0, 1]
@@ -97,7 +97,7 @@ class Sarah1(Model):
         gamma4_0 = (gamma4_max + gamma4_min) / 2
         gamma4_bounds = [gamma4_min, gamma4_0, gamma4_max]
 
-       
+
 
         beta_0 = 0.5  # on average each exposed person in contact with a susceptible person
         # will infect him with a probability 1/2
@@ -108,9 +108,9 @@ class Sarah1(Model):
         beta_bounds = [beta_min, beta_0, beta_max]
 
         cumulative_criticals_max = np.sum(self._observations[:, ObsEnum.NUM_CRITICAL.value])
-        
+
         cumulative_criticals_min = self._observations[-1, ObsEnum.NUM_CRITICAL.value]
-        
+
         delta_max = cumulative_criticals_max / cumulative_hospitalizations[-2]
         delta_max = max(0, min(delta_max, 1))
         delta_min = cumulative_criticals_min / cumulative_hospitalizations[-2]
@@ -118,23 +118,23 @@ class Sarah1(Model):
 
         delta_0 = delta_min * 0.7 + delta_max * 0.3
         delta_bounds = [delta_min, delta_0, delta_max]
-        
+
         # For the period of incubation
         rho_max = 1
         rho_0 = 1/3
         rho_min = 1/5
         rho_bounds = [rho_min,rho_0,rho_max]
-        
+
         #For the death...
         theta_min = 0.1
         theta_max = 1
         theta_0 = 0.2
         theta_bounds = [theta_min,theta_0,theta_max]
-        
-        
+
+
         sigma_max = 1/4
         sigma_min = 1/20 # = 1 / 100
-        # "avg-case": 
+        # "avg-case":
         sigma_0 = (sigma_max + sigma_min) / 2
         sigma_bounds = [sigma_min, sigma_0, sigma_max]
 
@@ -264,7 +264,7 @@ class Sarah1(Model):
             dEdt = int(np.ceil(beta_S * (A+SP) / N)) - rho_E
             dAdt = rho_E - sigma_A - gamma4_A
             dSPdt = sigma_A - tau_SP - gamma1_SP
-            dHdt = tau_SP - delta_H - gamma2_H 
+            dHdt = tau_SP - delta_H - gamma2_H
             dCdt = delta_H - theta_C - gamma3_C
             dFdt = theta_C
             dRdt = gamma1_SP + gamma2_H + gamma3_C + gamma4_A
@@ -290,7 +290,7 @@ class Sarah1(Model):
     def binomial_dist(self, value, bound_min, bound_max, population):
         moving_population = 0
         #print("population {}".format(population))
-        for i in range(population):
+        for i in range(int(population)):
             proba = random.uniform(bound_min,bound_max)
             if proba < value:
                 moving_population += 1
@@ -310,7 +310,7 @@ class Sarah1(Model):
         dAdt = rho * E - sigma * A - gamma4 * A
         #dSPdt = sigma * E - tau * SP - gamma1 * SP
         dSPdt = sigma * A - tau * SP - gamma1 * SP
-        dHdt = tau * SP - delta * H - gamma2 * H 
+        dHdt = tau * SP - delta * H - gamma2 * H
         dCdt = delta * H - theta * C - gamma3 * C
         dFdt = theta * C
         dRdt = gamma1 * SP + gamma2 * H + gamma3 * C + gamma4 * A
@@ -329,7 +329,7 @@ class Sarah1(Model):
         dAdt = rho * E - sigma * A - gamma4 * A
         #dSPdt = sigma * E - tau * SP - gamma1 * SP
         dSPdt = sigma * A - tau * SP - gamma1 * SP
-        dHdt = tau * SP - delta * H - gamma2 * H 
+        dHdt = tau * SP - delta * H - gamma2 * H
         dCdt = delta * H - theta * C - gamma3 * C
         dFdt = theta * C
         dRdt = gamma1 * SP + gamma2 * H + gamma3 * C + gamma4 * A
@@ -465,7 +465,7 @@ if __name__ == "__main__":
 
     for u in [ObsEnum.RSURVIVOR, ObsEnum.NUM_HOSPITALIZED, ObsEnum.NUM_CRITICAL,ObsEnum.NUM_FATALITIES]:
         plt.plot(rows[:, u.value], label=f"{u} (real)")
-        
+
 
     plt.title('Curve Fitting')
     plt.xlabel('Days')
