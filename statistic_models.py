@@ -297,8 +297,13 @@ class Sarah1(Model):
             # Probability of picking a number
             # - between bound_min and bound_max
             # - AND smaller than value
+
             p = (value - bound_min) / (bound_max - bound_min)
-            assert 0 <= p <= 1
+            assert 0 <= p <= 1, "Not a probability !?"
+
+            # We use the inverse-CDF method to pick a random
+            # number in [0,population] that follows a.
+            # binomial distribution
 
             q = np.random.uniform()
             return binom.ppf(q, population, p)
