@@ -4,6 +4,7 @@ import math
 from lmfit import minimize, Parameters, report_fit
 from geneticalgorithm import geneticalgorithm as ga
 from scipy.optimize import minimize as scipy_minimize
+from scipy.stats import binom
 import random
 
 import matplotlib.pyplot as plt
@@ -289,9 +290,19 @@ class Sarah1(Model):
 
     def binomial_dist(self, value, bound_min, bound_max, population):
 
+        # FIXME Population should never be inferior to zero !
+
         if population > 0:
-            rnd = np.random.uniform(bound_min,bound_max,int(population))
-            return rnd[ rnd < value ].shape[0]
+
+            # Probability of picking a number
+            # - between bound_min and bound_max
+            # - AND smaller than value
+            p = (value - bound_min) / (bound_max - bound_min)
+            assert 0 <= p <= 1
+
+            q = np.random.uniform()
+            return binom.ppf(q, population, p)
+
         else:
 
             moving_population = 0
