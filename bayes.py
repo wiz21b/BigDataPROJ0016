@@ -71,10 +71,10 @@ with basic_model:
     # Bound = put bounds around the parameter we're modelling
     # Normal = the parameter is ditributed around some normal distribution
 
-    gamma1 = pm.Bound(pm.Normal, lower=0.02, upper=0.25)("gamma1", mu=0.02, sigma=0.5)
+    gamma1 = pm.Bound(pm.Normal, lower=1/10, upper=1/4)("gamma1", mu=(1/10 + 1/4)/2, sigma=0.3)
     gamma2 = pm.Bound(pm.Normal, lower=0.02, upper=1)("gamma2", mu=0.74, sigma=0.5)
     gamma3 = pm.Bound(pm.Normal, lower=0.02, upper=1)("gamma3", mu=0.88, sigma=0.5)
-    gamma4 = pm.Bound(pm.Normal, lower=0.07, upper=1)("gamma4", mu=0.07, sigma=0.5)
+    gamma4 = pm.Bound(pm.Normal, lower=1/10, upper=1/4)("gamma4", mu=(1/10 + 1/4)/2, sigma=0.5)
     beta   = pm.Bound(pm.Normal, lower=0.01, upper=3)("beta", mu=1, sigma=0.5)
     tau    = pm.Bound(pm.Normal, lower=0.05, upper=1)("tau", mu=1, sigma=0.5)
     delta  = pm.Bound(pm.Normal, lower=0.09, upper=1)("delta", mu=0.19, sigma=0.5)
@@ -131,7 +131,7 @@ with basic_model:
 
 
 
-
+# 15 MINUTES
 #map_estimate = pm.find_MAP(model=basic_model)
 #pprint(map_estimate)
 print(datetime.now())
