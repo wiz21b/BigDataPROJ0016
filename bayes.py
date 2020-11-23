@@ -89,6 +89,8 @@ with basic_model:
 
     # We want to know how close our model (with b)
     # is to the actual observed data
+    # HalfNormal means positive normals (because sigma
+    # can't be negative when used in the resultX normals)
     error_sigma1 = pm.HalfNormal("error_sigma1", sigma=1)
     error_sigma2 = pm.HalfNormal("error_sigma2", sigma=1)
     error_sigma3 = pm.HalfNormal("error_sigma3", sigma=1)
@@ -121,7 +123,14 @@ with basic_model:
 
 # Compute "posteriors"
 print(datetime.now())
-approx = pm.fit(model=basic_model)
+with basic_model:
+    approx = pm.fit(model=basic_model)
+    trace = approx.sample()
+    print(trace)
+    print(pm.summary(trace))
+
+
+
 
 #map_estimate = pm.find_MAP(model=basic_model)
 #pprint(map_estimate)
