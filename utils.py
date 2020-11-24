@@ -46,7 +46,7 @@ class ObsEnum(Enum):
     # RECOVERED = 10
     # SUSPECT = 12
     DAILY_HOSPITALIZATIONS = 11
-   
+
 
     def __int__(self):
         return self.value
@@ -208,6 +208,8 @@ def load_data():
         # for i in range(5):
         #     next(csvreader)
 
+        rsurvivor_1 = 0
+
         for r in csvreader:
             if r:
                 ir = [int(x) for x in r]
@@ -215,7 +217,11 @@ def load_data():
                 observations.append(t)
                 positive_cumulated += t.num_positive
                 tested_cumulated += t.num_tested
-                rsurvivor = t.num_cumulative_hospitalizations - t.num_hospitalised - t.num_critical -t.num_fatalities
+                # rsurvivor = t.num_cumulative_hospitalizations - t.num_hospitalised - t.num_critical -t.num_fatalities
+
+                rsurvivor = t.num_cumulative_hospitalizations - t.num_hospitalised - t.num_critical -t.num_fatalities - rsurvivor_1
+                rsurvivor_1 = rsurvivor
+
                 rows.append(ir + [positive_cumulated, tested_cumulated,rsurvivor])
 
     return head, observations, rows
