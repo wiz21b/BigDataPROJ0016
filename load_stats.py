@@ -44,10 +44,15 @@ STATS_WORKPLACES = parse_places("https://raw.githubusercontent.com/ADelau/proj00
 
 print(STATS_AGES[10:15])
 print(f"Population = {sum(STATS_AGES)} persons")
-print(STATS_COMMUNITIES_POP[10:15])
 
+print(STATS_COMMUNITIES_POP[10:15])
 print(f"Population in communities = {sum(STATS_COMMUNITIES_POP[1:])} persons")
 print(STATS_COMMUNITIES_FRAC[10:15])
-print(STATS_HOUSEHOLDS[10:15])
+
+print(STATS_HOUSEHOLDS[1:4])
+s = sum([i*STATS_HOUSEHOLDS[i] for i in range(len(STATS_HOUSEHOLDS))])
+print(f"Population in households = {s} persons")
+
+
 print(STATS_SCHOOLS[10:15])
 print(STATS_WORKPLACES[10:15])
