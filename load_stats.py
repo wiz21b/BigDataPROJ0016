@@ -11,12 +11,12 @@ with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-e
 
 with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/stats/communities.json") as fp:
     data = json.load(fp)
-    STATS_WARDS_POP = [None] * (len(data)+1)
-    STATS_WARDS_FRAC = [None] * (len(data)+1)
+    STATS_COMMUNITIES_POP = [None] * (len(data)+1)
+    STATS_COMMUNITIES_FRAC = [None] * (len(data)+1)
 
     for d in data:
-        STATS_WARDS_POP[ d['wardNo']] = d['totalPopulation']
-        STATS_WARDS_FRAC[ d['wardNo']] = d['fracPopulation']
+        STATS_COMMUNITIES_POP[ d['wardNo']] = d['totalPopulation']
+        STATS_COMMUNITIES_FRAC[ d['wardNo']] = d['fracPopulation']
 
 
 with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/stats/households.json") as fp:
@@ -43,8 +43,8 @@ STATS_WORKPLACES = parse_places("https://raw.githubusercontent.com/ADelau/proj00
 
 
 print(STATS_AGES[10:15])
-print(STATS_WARDS_POP[10:15])
-print(STATS_WARDS_FRAC[10:15])
+print(STATS_COMMUNITIES_POP[10:15])
+print(STATS_COMMUNITIES_FRAC[10:15])
 print(STATS_HOUSEHOLDS[10:15])
 print(STATS_SCHOOLS[10:15])
 print(STATS_WORKPLACES[10:15])
