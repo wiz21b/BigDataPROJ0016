@@ -49,7 +49,7 @@ def draw_conf(days, params):
     plt.show()
 
     plt.figure()
-    plt.title('HOSPITALIZED')
+    plt.title('CRITICAL')
     t = StateEnum.CRITICAL
     plt.plot(perc50[:, t.value], label=f"{t} (model)")
 
@@ -66,7 +66,7 @@ def draw_conf(days, params):
     plt.show()
 
     plt.figure()
-    plt.title('HOSPITALIZED')
+    plt.title('FATALITIES')
     t = StateEnum.FATALITIES
     plt.plot(perc50[:, t.value], label=f"{t} (model)")
 
@@ -234,22 +234,22 @@ def confidence(nb_observations, days, params):
         perc50.append(val50)
         perc5.append(val5)
         perc95.append(val95)
-        
+
     return (np.array(perc50), np.array(perc5), np.array(perc95))
 
 if __name__ == "__main__":
-    gamma1 = 0.02
-    gamma2 = 0.06
-    gamma3 = 0.2
-    gamma4 = 0.5333
-    beta = 0.3714
-    tau = 0.05
-    delta = 0.07
-    sigma = 0.25
-    rho = 0.89
-    theta = 0.10
-    mu = 0
-    eta = 0
+    gamma1 = 0.219482
+    gamma2 = 0.422288
+    gamma3 = 0.451529
+    gamma4 = 0.142152
+    beta = 0.31097429
+    tau = 0.012488755
+    delta = 0.0108857
+    sigma = 0.5502580
+    rho = 0.896929609
+    theta = 0.0768576
+    mu = 0.7772346165
+    eta = 0.787465429
 
     params=[gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta, mu, eta]
     params = _params_array_to_dict(params)
