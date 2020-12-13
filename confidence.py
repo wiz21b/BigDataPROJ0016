@@ -265,7 +265,6 @@ class SarahStat(Model):
 
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
-
 if __name__ == "__main__":
     head, observations, rows = load_data()
     rows = np.array(rows)
@@ -283,27 +282,28 @@ if __name__ == "__main__":
     mu = 0.67
     eta = 0.8
 
-    ms = SarahStat(rows, 1000324)
+    ms = SarahStat(rows, 1000000)
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
     NB_EXPERIMENTS = 5
-    PREDICTED_DAYS = 150
+    PREDICTED_DAYS = 135
 
     print(f"Running {NB_EXPERIMENTS} experiments")
     experiments = [] # dims : [experiment #][day][value]
 
     for i in range(NB_EXPERIMENTS):
+        print("----------------------------------------------------------------------------")
+        print("-----------------------------Experiment: {} --------------------------------".format(i))
+        print("----------------------------------------------------------------------------")
         sres = ms.predict_stochastic(PREDICTED_DAYS)
         experiments.append(sres)
     print("... done running experiments")
 
     experiments = np.stack(experiments)
-    for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED),
-                        (StateEnum.DHDT,ObsEnum.DHDT),
+    for state, obs in [ (StateEnum.DHDT,ObsEnum.DHDT),
                         (StateEnum.DFDT,ObsEnum.DFDT),
                         (StateEnum.DTESTEDDT,ObsEnum.NUM_TESTED),
                         (StateEnum.DTESTEDPOSDT,ObsEnum.NUM_POSITIVE),
-                       (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL),
                        (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
 
         percentiles = np.stack(
@@ -318,12 +318,52 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
-        plt.savefig("img_final/no_mesure_"+str(state)+".pdf")
+        #plt.plot([0, PREDICTED_DAYS],[1500, 1500])
+        plt.savefig("img_final/goodlockdown_andmask_"+str(state)+".pdf")
 
         plt.title(str(state))
     plt.show()
 
-    PREDICTED_DAYS = 150
+    for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED)]:
+
+        percentiles = np.stack(
+            [np.percentile(experiments[:,day,state.value],[5,50,95])
+             for day in range(PREDICTED_DAYS)])
+
+        color = COLORS_DICT[state]
+
+        plt.figure()
+        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
+        #plt.fill_between(range(PREDICTED_DAYS), percentiles[:,1],percentiles[:,3], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
+        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
+
+        plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
+        plt.plot([0, PREDICTED_DAYS],[1500, 1500])
+        plt.savefig("img_final/goodlockdown_andmask_"+str(state)+".pdf")
+
+        plt.title(str(state))
+    plt.show()
+
+    for state, obs in [(StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL)]:
+
+        percentiles = np.stack(
+            [np.percentile(experiments[:,day,state.value],[5,50,95])
+             for day in range(PREDICTED_DAYS)])
+
+        color = COLORS_DICT[state]
+
+        plt.figure()
+        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
+        #plt.fill_between(range(PREDICTED_DAYS), percentiles[:,1],percentiles[:,3], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
+        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
+
+        plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
+        plt.plot([0, PREDICTED_DAYS],[300, 300])
+        plt.savefig("img_final/goodlockdown_andmask_"+str(state)+".pdf")
+
+        plt.title(str(state))
+    plt.show()
+
 
     plt.figure()
     for state in [(StateEnum.HOSPITALIZED),(StateEnum.CRITICAL),StateEnum.EXPOSED,StateEnum.RECOVERED,StateEnum.FATALITIES,
@@ -339,8 +379,8 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"{obs}")
 
         #plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state}")
-
+        
     plt.legend()
     plt.title("preview")
-    plt.savefig("img_final/mask_allState.pdf")
+    plt.savefig("img_final/goodislockdown_andmask_allState.pdf")
     plt.show()
