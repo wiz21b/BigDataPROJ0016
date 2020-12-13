@@ -1,3 +1,4 @@
+from collections import defaultdict
 from enum import Enum
 import random
 import numpy as np
@@ -205,31 +206,29 @@ for person in random.sample(persons, 1234):
 # --------------------------------------------------------------------
 # Dispatching the quota
 
-
-# Second, figure out the people they can infect
-# Edge case : if 2 infected are in the same company, they
-# have "infectable" persons in common => we must make sure
-# they are counted once. That's why we use sets intead of arrays.
-
 class InfectablePool:
     def __init__(self, infected_people):
-        self._targets = {Places.Workplace: [],
-                         Places.HouseHold: [],
-                         Places.School: [],
-                         Places.Community: []}
+        self._targets = {Places.Workplace: defaultdict(lambda: 0),
+                         Places.HouseHold: defaultdict(lambda: 0),
+                         Places.School: defaultdict(lambda: 0),
+                         Places.Community: defaultdict(lambda: 0)}
 
-        # Si A & B peuvent infecter C sur le lieu de travail
-        # Alors C n'apparait qu'une seule fois dans WorkPlace
+        self._keys = dict()
+        for grp, v in self._targets.items():
+            self._keys[grp] = set(v.keys())
 
-        # Avec array:
         # Si A & B peuvent infecter C sur le lieu de travail
         # alors C apparait DEUX fois dans le groupe workplace
+        # Cela simule le fait qu'il a plus de chances de se faire
+        # infecter.
 
         n = 0
         for infected in infected_people:
-            for t, p in infected.infectables().items():
+            for t, infectables in infected.infectables().items():
                 # t is the group, p is the person
-                self._targets[t].extend(p)
+                # We count the person once more
+                for p in infectables:
+                    self._targets[t][p] += 1
 
             n += 1
             if n % 1000 == 0:
@@ -246,15 +245,26 @@ class InfectablePool:
         """ Infect one person in the given group.
         """
 
-        person = random.choice(self._targets[group])
+        person = random.choice(list(self._targets[group].keys()))
 
+        # print(f"Removing someone {person} from {group}")
+        # assert isinstance(person, Person)
+        # assert person in self._targets[group]
 
         # Remove the person from all the groups
         done = False
-        for infectables in self._targets.values():
+        for grp, infectables in self._targets.items():
+            # print(grp)
+            # print(type(infectables))
+
             if person in infectables:
-                while person in infectables:
-                    infectables.remove(person)
+
+                if infectables[person] > 1:
+                    infectables[person] -= 1
+                else:
+                    del infectables[person]
+                    #self._keys[grp].remove(person)
+
                 done = True
 
         assert done, "You tried to infect someone who's not a target"
@@ -274,7 +284,7 @@ mesure_community = 0
 
 
 
-for day in range(10):
+for day in range(5):
 
     # Infected people
     cnt_infected = sum(1 for _ in filter(lambda p: p.infected, persons))
