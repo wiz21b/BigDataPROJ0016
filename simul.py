@@ -1,3 +1,4 @@
+from datetime import datetime
 from collections import defaultdict
 from enum import Enum
 import random
@@ -5,6 +6,75 @@ import numpy as np
 
 from load_stats import STATS_HOUSEHOLDS, STATS_WORKPLACES, \
     STATS_SCHOOLS, STATS_COMMUNITIES_POP
+random.seed(1)
+
+
+start_time = datetime.now()
+
+class PeopleCounter:
+    def __init__(self, people_dict):
+        self._d = dict()
+        self._d.update(people_dict)
+
+        # Index to people
+        self._people = [p for p in people_dict.keys()]
+
+        # People to index
+        self._people_to_ndx = dict(
+            zip(self._people, range(len(self._people))))
+
+    def pick(self):
+        ndx = random.randint(0, len(self._people)-1)
+
+        while self._people[ndx] is None:
+            ndx = (ndx+1) % len(self._people)
+
+        return self._people[ndx]
+
+    def decount(self, p):
+        assert p in self._d
+
+        if self._d[p] > 1:
+            self._d[p] -= 1
+        else:
+            self.remove(p)
+
+    def remove(self, p):
+        self._d.pop(p)
+        self._people[self._people_to_ndx[p]] = None
+        self._people_to_ndx[p] = None
+
+    def __contains__(self, k):
+        return k in self._d
+
+    def __len__(self):
+        return len(self._d)
+
+    def __getitem__(self, k):
+        return self._d[k]
+
+    def __setitem__(self, ndx, value):
+        self._d[ndx] = value
+
+    def __str__(self):
+        return str(self._d)
+
+a = {"a":0, "b":0, "c":0}
+pc = PeopleCounter(a)
+print(pc.pick())
+pc.remove("a")
+pc.remove("b")
+print(pc.pick())
+print(pc.pick())
+pc["c"] = 3
+print(pc)
+
+assert pc["c"] == 3
+
+print("c" in pc)
+#exit()
+
+
 
 
 class Places(Enum):
@@ -12,6 +82,9 @@ class Places(Enum):
     HouseHold = 2
     School = 3
     Community = 4
+
+
+
 
 class Person:
     def __init__(self):
@@ -24,7 +97,8 @@ class Person:
 
     @property
     def infected(self):
-        return self.state in ("E", "A")
+        # infectious
+        return self.state in ("A", "SP")
 
     def infectables(self):
         assert self.infected, "Only an infected person can infect others"
@@ -197,51 +271,62 @@ print(f"{p_ndx} persons in {nb_com} communities")
 all_groups.status()
 
 # --------------------------------------------------------------------
-# Infecting people
-
-for person in random.sample(persons, 12340):
-    person.state = "E"
-
-
-# --------------------------------------------------------------------
 # Dispatching the quota
 
 class InfectablePool:
-    def __init__(self, infected_people):
-        self._targets = {Places.Workplace: defaultdict(lambda: 0),
-                         Places.HouseHold: defaultdict(lambda: 0),
-                         Places.School: defaultdict(lambda: 0),
-                         Places.Community: defaultdict(lambda: 0)}
 
+    def __init__(self, persons, repartition):
+
+        ndx = 0
+
+        shuf_ndx = [i for i in range(len(persons))]
+        random.shuffle(shuf_ndx)
+
+        for status, cnt in repartition.items():
+            for i in range(cnt):
+                persons[shuf_ndx[ndx]].state = status
+                ndx += 1
+        print("Partitioned {}/{} persons".format(
+            sum(repartition.values()), ndx))
+
+        infected_people = [p for p in filter(lambda p: p.infected, persons)]
 
         # Si A & B peuvent infecter C sur le lieu de travail
         # alors C apparait DEUX fois dans le groupe workplace
         # Cela simule le fait qu'il a plus de chances de se faire
         # infecter.
 
-        n = 0
-        for infected in infected_people:
-            for grp, infectables in infected.infectables().items():
-                # t is the group, p is the person
-                # We count the person once more
+        # infected schools
 
-                tgts = self._targets[grp]
-                for p in infectables:
-                    tgts[p] += 1
+        print(f"Building target pools for {len(infected_people)} infected people")
 
-            n += 1
-            if n % 1000 == 0:
-                print(n)
+        self._targets = dict()
+        for group, field in [(Places.Workplace, "workplace"),
+                             (Places.School, "school"),
+                             (Places.Community, "community"),
+                             (Places.HouseHold, "household")]:
+            schools = set(
+                filter(lambda s: s is not None,
+                       [getattr(infected, field) for infected in infected_people]))
+
+            print(f"{group} has {len(schools)} locations with infected people")
+
+            dd = defaultdict(lambda: 0)
+            for school in schools:
+                for p in school.infectable():
+                    dd[p] += 1
+
+            self._targets[group] = PeopleCounter(dd)
 
         print(f"Targets reachable by {len(infected_people)} infected people")
         for k, v in self._targets.items():
             print(f"   {k} : {len(v)} targets")
 
 
-        # For optimisation
-        self._keys = dict()
-        for grp, v in self._targets.items():
-            self._keys[grp] = list(v.keys())
+        # # For optimisation
+        # self._keys = dict()
+        # for grp, v in self._targets.items():
+        #     self._keys[grp] = list(v.keys())
 
     def has_targets_in(self, group: Places):
         return len(self._targets[group]) > 0
@@ -250,11 +335,7 @@ class InfectablePool:
         """ Infect one person in the given group.
         """
 
-        person = None
-        p_ndx = None
-        while person is None:
-            p_ndx = random.randint(0,len(self._keys[group])-1)
-            person = self._keys[group][p_ndx]
+        person = self._targets[group].pick()
 
         # print(f"Removing someone {person} from {group}")
         # assert isinstance(person, Person)
@@ -267,23 +348,27 @@ class InfectablePool:
             # print(type(infectables))
 
             if person in infectables:
-
-                if infectables[person] > 1:
-                    infectables[person] -= 1
-                else:
-                    del infectables[person]
-                    self._keys[group][p_ndx] = None
-
+                infectables.decount(person)
                 done = True
 
         assert done, "You tried to infect someone who's not a target"
 
-        person.state = 'E'
+        person.state = 'A'
 
 
+repartition = {
+    "S" : 930857,
+    "E" : 5929,
+    "A" : 6611,
+    "SP" : 12445,
+    "H" : 681,
+    "C" : 91,
+    "F" : 39,
+    "R" : 43237
+}
 
-infected_people = [p for p in filter(lambda p: p.infected, persons)]
-targets = InfectablePool(infected_people)
+
+targets = InfectablePool(persons, repartition)
 
 beta = 0.3
 N = 100324
@@ -333,3 +418,5 @@ for day in range(10):
 
 
     print(f"{actually_infected} were infected")
+
+print("Run for {:d} seconds".format((datetime.now() - start_time).seconds))
