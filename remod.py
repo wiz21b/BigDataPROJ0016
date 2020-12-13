@@ -65,14 +65,14 @@ class SarahStat(Model):
         self._evaluation = 0
         self._iterations = 0
 
-        E0 = 15 * 2
-        A0 = 10 * 2
-        SP0 = 5 * 2
-        H0 = self._observations[0][ObsEnum.NUM_HOSPITALIZED.value]
-        C0 = self._observations[0][ObsEnum.NUM_CRITICAL.value]
+        E0 = 30
+        A0 = 20
+        SP0 = 10
+        H0 = observations[0][ObsEnum.NUM_HOSPITALIZED.value]
+        C0 = observations[0][ObsEnum.NUM_CRITICAL.value]
         R0 = 0
-        F0 = 0
-        S0 = self._N - E0 - A0 - SP0 - R0 - H0 - C0
+        F0 = observations[0][ObsEnum.NUM_FATALITIES.value]
+        S0 = N - E0 - A0 - SP0 - H0 - C0 - R0 - F0
         infected_per_day = 0
         R_out_HC = 0
         cumulI = A0 + SP0
@@ -95,14 +95,14 @@ class SarahStat(Model):
         max_symptomatic_time = 10
 
         error_margin = 0.2
-        print(self._observations[:, ObsEnum.NUM_POSITIVE.value])
-        cumulative_positives = np.cumsum(self._observations[:, ObsEnum.NUM_POSITIVE.value])
-        cumulative_hospitalizations = self._observations[:, ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value]
+        print(ms._observations[:, ObsEnum.NUM_POSITIVE.value])
+        cumulative_positives = np.cumsum(ms._observations[:, ObsEnum.NUM_POSITIVE.value])
+        cumulative_hospitalizations = ms._observations[:, ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value]
 
         # ----------------------------------
         # Tau (SP -> H)
-        cumulative_positives = np.cumsum(self._observations[:, ObsEnum.NUM_POSITIVE.value])
-        cumulative_hospitalizations = self._observations[:, ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value]
+        cumulative_positives = np.cumsum(ms._observations[:, ObsEnum.NUM_POSITIVE.value])
+        cumulative_hospitalizations = ms._observations[:, ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value]
         tau_0 = 0.01
         error_margin = 0.2
         tau_min = 0.001
@@ -174,8 +174,8 @@ class SarahStat(Model):
         beta_min = R0_min / max_symptomatic_time
         beta_max = R0_max / min_symptomatic_time
 
-        beta_0 = 0.32
-        beta_min = 0.3
+        beta_0 = 0.25
+        beta_min = 0.2
         beta_max = 0.55
         beta_bounds = [0.30, 0.34, 0.55]
 
@@ -220,39 +220,54 @@ class SarahStat(Model):
         eta_0 = 0.8
         eta_bounds = [eta_min,eta_0,eta_max]
 
+        mini = 99999999
+        for pre_test in range(1000):
+            print("3 - Pre test of the parameters: {} of 1000".format(pre_test + 1))
 
-        #Best first estim so far
-        # b_gamma1 = 0.02712409
-        # b_gamma2 = 0.50743732
-        # b_gamma3 = 0.3725912
-        # b_gamma4 = 0.4588356
-        # b_beta = 0.77522
-        # b_tau = 0.660597
-        # b_delta = 0.153682
-        # b_sigma = 0.19352783
-        # b_rho = 0.545133
-        # b_theta = 0.31228517
+            gamma1 = random.uniform(gamma1_min, gamma1_max)
+            gamma2 = random.uniform(gamma2_min, gamma2_max)
+            gamma3 = random.uniform(gamma3_min, gamma3_max)
+            gamma4 = random.uniform(gamma4_min, gamma4_max)
+            beta = random.uniform(beta_min, beta_max)
+            tau = random.uniform(tau_min, tau_max)
+            delta = random.uniform(delta_min, delta_max)
+            sigma = random.uniform(sigma_min, sigma_max)
+            rho = random.uniform(rho_min, rho_max)
+            theta = random.uniform(theta_min, theta_max)
+            mu = random.uniform(mu_min, mu_max)
+            eta = random.uniform(eta_min, eta_max)
 
-        # best_preprocess = [b_gamma1, b_gamma2, b_gamma3, b_gamma4, b_beta, b_tau, b_delta, b_sigma, b_rho, b_theta]
-        # best_preprocess = self._params_array_to_dict(best_preprocess)
-        # mini = 0
+            param_values = [gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta, mu, eta]
+            #params = self._params_array_to_dict(param_values)
+            #print(params)
 
-        # print(best_preprocess)
-        # self._preprocess = False
+            neg_likelihood = self._plumb_scipy_stocha(param_values)
 
-        # gamma1_bounds = [gamma1_min, best_preprocess['gamma1'], gamma1_max]
-        # gamma2_bounds = [gamma2_min, best_preprocess['gamma2'], gamma2_max]
-        # gamma3_bounds = [gamma3_min, best_preprocess['gamma3'], gamma3_max]
-        # gamma4_bounds = [gamma4_min, best_preprocess['gamma4'], gamma4_max]
-        # beta_bounds = [beta_min, best_preprocess['beta'], beta_max]
-        # tau_bounds = [tau_min, best_preprocess['tau'], tau_max]
-        # delta_bounds = [delta_min, best_preprocess['delta'], delta_max]
-        # sigma_bounds = [sigma_min, best_preprocess['sigma'], sigma_max]
-        # rho_bounds = [rho_min, best_preprocess['rho'], rho_max]
-        # theta_bounds = [theta_min, best_preprocess['theta'], theta_max]
+            if neg_likelihood < mini:
+                mini = neg_likelihood
+                print("Min preprocess: {}".format(mini))
+                best_preprocess = param_values
+                print("Corresponding params:")
+                print(best_preprocess)
 
-        bounds = [gamma1_bounds, gamma2_bounds, gamma3_bounds, gamma4_bounds, beta_bounds, tau_bounds, delta_bounds, sigma_bounds,rho_bounds,theta_bounds,mu_bounds,eta_bounds]
-        param_names = ['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta','mu','eta']
+        best_preprocess = self._params_array_to_dict(best_preprocess)
+        print(best_preprocess)
+
+        gamma1_bounds = [gamma1_min, best_preprocess['gamma1'], gamma1_max]
+        gamma2_bounds = [gamma2_min, best_preprocess['gamma2'], gamma2_max]
+        gamma3_bounds = [gamma3_min, best_preprocess['gamma3'], gamma3_max]
+        gamma4_bounds = [gamma4_min, best_preprocess['gamma4'], gamma4_max]
+        beta_bounds = [beta_min, best_preprocess['beta'], beta_max]
+        tau_bounds = [tau_min, best_preprocess['tau'], tau_max]
+        delta_bounds = [delta_min, best_preprocess['delta'], delta_max]
+        sigma_bounds = [sigma_min, best_preprocess['sigma'], sigma_max]
+        rho_bounds = [rho_min, best_preprocess['rho'], rho_max]
+        theta_bounds = [theta_min, best_preprocess['theta'], theta_max]
+        mu_bounds = [mu_min, best_preprocess['mu'], mu_max]
+        eta_bounds = [eta_min, best_preprocess['eta'], eta_max]
+
+        bounds = [gamma1_bounds, gamma2_bounds, gamma3_bounds, gamma4_bounds, beta_bounds, tau_bounds, delta_bounds, sigma_bounds,rho_bounds,theta_bounds, mu_bounds, eta_bounds]
+        param_names = ['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta', 'mu', 'eta']
         params = Parameters()
 
         for param_str, param_bounds in zip(param_names, bounds):
@@ -261,6 +276,34 @@ class SarahStat(Model):
         return params
 
 
+    def compute_log_likelihoods(self, all_exp, obs_rows):
+        lhs = dict()
+
+        days = obs_rows.shape[0]
+
+        for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT,self._fit_params['tau'])]: 
+
+            log_likelihood = 0
+            for day_ndx in np.arange(5,days):
+                # Take all the values of experiments on a given day day_ndx
+                # for a given measurement (state.value)
+                d = all_exp[:, day_ndx, state.value] # binomial
+                observation = obs_rows[day_ndx, obs.value] # observation
+                print(str(state) + " d = "+ str(np.ceil(np.mean(d))) + "-----------" + " obs = " + str(observation) + "\n")
+                #valeur la probabilite d'obtenir observation sachant que d suit cette distribution, avec parametre de tau
+                try :
+                    x = binom.pmf(observation,max(observation,np.ceil(np.mean(d))),param)
+                except FloatingPointError as exception:
+                    x = 0.001
+                log_bin = np.log(x)
+                print(" log_bin = " + str(log_bin) + "---------------------------------------------------")
+                log_likelihood += log_bin
+
+            lhs[obs] = log_likelihood
+
+            #print(f"likelihood {state} over {days} days: log_likelihood:{log_likelihood}")
+
+        return lhs
 
 
     def _plumb_scipy(self, params, days, error_func=None):
@@ -268,7 +311,7 @@ class SarahStat(Model):
 
         days = len(self._observations)
 
-        print(params)
+        #print(params)
 
         # Sarah's function prefers params as a dictionary
         # so we convert.
@@ -281,55 +324,34 @@ class SarahStat(Model):
         #             infected_per_day, R_survivor, cumulI,
         #              cumulH, R_out_HC])
 
-        for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT,params_as_dict['tau']),
+        for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT,params_as_dict['tau']),(StateEnum.CRITICAL, ObsEnum.DFDT,params_as_dict['theta']),
                                 (StateEnum.DSPDT, ObsEnum.NUM_TESTED,params_as_dict['mu']),(StateEnum.DTESTEDDT, ObsEnum.NUM_POSITIVE,params_as_dict['eta'])]: 
         # donc 1) depuis le nombre predit de personne SymPtomatique et le parametre tau, je regarde si l'observations dhdt est probable
         #      2) depuis le nombre predit de personne Critical et le parametre theta, je regarde si l'observations dfdt est probable
         #      3) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt) avec le parmetre de test(mu), je regarde si l'observation num_tested est probable
         #      4) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt), je regarde la proportion de test realisees ( mu*sigma*A) avec le parmetre de sensibilite (eta), je regarde si l'observation num_positive est probable
             log_likelihood = 0
-            for day_ndx in np.arange(10,days-8):
+            for day_ndx in range(days):
                 # Take all the values of experiments on a given day day_ndx
                 # for a given measurement (state.value)
                 
                 observation = max(1,self._observations[day_ndx][obs.value])
                 prediction = res[day_ndx][state.value]
-                print(str(state) + " d = "+ str(np.ceil(prediction)) + "-----------" + " obs = " + str(observation) + "\n")
+                #print(str(state) + " d = "+ str(np.ceil(prediction)) + "-----------" + " obs = " + str(observation) + "\n")
                 try :
-                    x = binom.pmf(observation,np.ceil(np.mean(prediction)),param)
-                    log_bin = np.log(x)
+                    x = binom.pmf(observation,np.ceil(np.mean(prediction)),param) + 0.0000000001
                 except FloatingPointError as exception:
-                    log_bin = -999
-                
-                print(" log_bin = " + str(x) + "---------------------------------------------------")
+                    x = 0.0000000001
+                log_bin = np.log(x)
+                #print(" log_bin = " + str(log_bin) + "---------------------------------------------------")
                 log_likelihood += log_bin
 
             lhs[obs] = log_likelihood
 
             #print(f"likelihood {state} over {days} days: log_likelihood:{log_likelihood}")
 
+        #print("likelihood: {}".format(-sum(lhs.values())))
         return -sum(lhs.values())
-
-        # rselect = np.ix_(range(res.shape[0]),
-        #                  [StateEnum.HOSPITALIZED.value,
-        #                  StateEnum.DSPDT.value,
-        #                  StateEnum.DHDT.value,
-        #                   StateEnum.CRITICAL.value,
-        #                   StateEnum.FATALITIES.value])
-
-        # oselect = np.ix_(range(self._nb_observations),
-        #                  [ObsEnum.NUM_HOSPITALIZED.value,
-        #                  ObsEnum.NUM_POSITIVE.value,
-        #                  ObsEnum.DHDT.value,
-        #                   ObsEnum.NUM_CRITICAL.value,
-        #                   ObsEnum.NUM_FATALITIES.value])
-
-        # short_obs = self._observations[oselect][10:]
-        # short_res = res[rselect][10:]
-
-        # rel = short_obs
-        # rel[rel == 0] = 1
-        # rel = 1/rel
 
 
         # return least_squares
@@ -538,24 +560,17 @@ class SarahStat(Model):
                 observation = max(1,self._observations[day_ndx][obs.value])
                 d = all_exp[:, day_ndx, state.value] # binomial
                 prediction = np.mean(d)
-                print(str(state) + " d = "+ str(np.ceil(prediction)) + "-----------" + " obs = " + str(observation) + "\n")
+                #print(str(state) + " d = "+ str(np.ceil(prediction)) + "-----------" + " obs = " + str(observation) + "\n")
                 try :
-                    x = binom.pmf(observation,np.ceil(prediction),param)
+                    x = binom.pmf(observation,np.ceil(np.mean(prediction)),param)
                     log_bin = np.log(x)
                 except FloatingPointError as exception:
                     log_bin = -999
-                print(" log_bin = " + str(x) + "---------------------------------------------------")
+                #print(" log_bin = " + str(x) + "---------------------------------------------------")
                 log_likelihood += log_bin
 
             lhs[obs] = log_likelihood
         return -sum(lhs.values())
-        # # FIXME Check the sign
-        # ll = - sum(log_likelihoods.values())
-        # #print(f"{self._iterations} {ll}")
-        # print(params)
-        # self._iterations += 1
-
-        # return ll
 
 
     def stocha_fit_parameters(self):
@@ -565,15 +580,14 @@ class SarahStat(Model):
 
         # Find first set of parameters
         params = self.get_initial_parameters()
+        bounds = np.array([(p.min, p.max) for p_name, p in params.items()])
 
         # Group parameters
-        fit_params = self._fit_params
-        bounds = []
-        x0 = []
-        for k in fit_params.keys():
-            p = params[k]
-            bounds.append((p.min, p.max))
-            x0.append(fit_params[k])
+        for p_name, p in params.items():
+            print( "{:10s} [{:.2f} - {:.2f}]".format(p_name,p.min, p.max))
+
+        x0 = [ p.value for p_name, p in params.items() ]
+        print( "initial guess for params: {}".format(x0))
 
 
         res = scipy_minimize(self._plumb_scipy_stocha,
@@ -597,46 +611,13 @@ if __name__ == "__main__":
     days = len(observations)
 
     ms = SarahStat(rows, 1000000)
-
-    # sres = ms.predict(80)
-
-    # plt.figure()
-    # plt.title('HOSPITALIZED / PER DAY fit')
-    # t = StateEnum.DHDT
-    # plt.plot(sres[:, t.value], label=f"{t} (model)")
-    # u = ObsEnum.DHDT
-    # plt.plot(rows[:, u.value], "--", label=f"{u} (real)")
-    # plt.savefig('dhdtbefore.pdf')
-
-    # plt.figure()
-    # plt.title('FATALITIES / PER DAY fit')
-    # t = StateEnum.DFDT
-    # plt.plot(sres[:, t.value], label=f"{t} (model)")
-    # u = ObsEnum.DFDT
-    # plt.plot(rows[:, u.value], "--", label=f"{u} (real)")
-    # plt.savefig('dftfbefore.pdf')
-
-    # plt.figure()    
-    # plt.title('NUM_tested / PER DAY fit')
-    # t = StateEnum.DTESTEDDT
-    # plt.plot(sres[:, t.value], label=f"{t} (model)")
-    # u = ObsEnum.NUM_TESTED
-    # plt.plot(rows[:, u.value], "--", label=f"{u} (real)")
-    # plt.savefig('dtesteddtbefore.pdf')
-
-    # plt.figure()
-    # plt.title('NUM_Positive / PER DAY fit')
-    # t = StateEnum.DTESTEDPOSDT
-    # plt.plot(sres[:, t.value], label=f"{t} (model)")
-    # u = ObsEnum.NUM_POSITIVE
-    # plt.plot(rows[:, u.value], "--", label=f"{u} (real)")
-    # plt.savefig('dtestedposdtbefore.pdf')
     
 
-    # ms.fit_parameters(None)
     ms.stocha_fit_parameters()
 
-    sres = ms.predict(70)
+    sres = ms.predict(80)
+
+    version = 3
 
     plt.figure()
     plt.title('HOSPITALIZED / PER DAY fit')
@@ -644,7 +625,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label=str(t) +" (model)")
     u = ObsEnum.DHDT
     plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
-    plt.savefig('0image/dhdt.pdf')
+    plt.savefig('img/v{}-dhdt.pdf'.format(version))
 
     plt.figure()
     plt.title('Hospitalized')
@@ -652,7 +633,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label=str(t) +" (model)")
     u = ObsEnum.NUM_HOSPITALIZED
     plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
-    plt.savefig('0image/hospitalized.pdf')
+    plt.savefig('img/v{}-hospitalized.pdf'.format(version))
 
     plt.figure()
     plt.title('Critical')
@@ -660,7 +641,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label=str(t) +" (model)")
     u = ObsEnum.NUM_CRITICAL
     plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
-    plt.savefig('0image/critical.pdf')
+    plt.savefig('img/v{}-critical.pdf'.format(version))
 
     plt.figure()
     plt.title('FATALITIES')
@@ -668,7 +649,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label=str(t) +" (model)")
     u = ObsEnum.NUM_FATALITIES
     plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
-    plt.savefig('0image/FATALITIES.pdf')
+    plt.savefig('img/v{}-FATALITIES.pdf'.format(version))
 
     plt.figure()
     plt.title('FATALITIES / PER DAY fit')
@@ -676,7 +657,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label=str(t) +" (model)")
     u = ObsEnum.DFDT
     plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
-    plt.savefig('0image/dftf.pdf')
+    plt.savefig('img/v{}-dftf.pdf'.format(version))
 
     plt.figure()    
     plt.title('NUM_tested / PER DAY fit')
@@ -684,7 +665,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label=str(t) +" (model)")
     u = ObsEnum.NUM_TESTED
     plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
-    plt.savefig('0image/dtesteddt.pdf')
+    plt.savefig('img/v{}-dtesteddt.pdf'.format(version))
 
     plt.figure()
     plt.title('NUM_Positive / PER DAY fit')
@@ -692,26 +673,27 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label=str(t) +" (model)")
     u = ObsEnum.NUM_POSITIVE
     plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
-    plt.savefig('0image/dtestedposdt.pdf')
-
+    plt.savefig('img/v{}-dtestedposdt.pdf'.format(version))
+    exit()
     #
     # plt.figure()
     # plt.title('LM fit')
     #
     #
-
-    NB_EXPERIMENTS = 1000
-    PREDICTED_DAYS = 80
-    
-    print(f"Running {NB_EXPERIMENTS} experiments")
-    experiments = [] # dims : [experiment #][day][value]
-    
-    for i in range(NB_EXPERIMENTS):
-        sres = ms.predict_stochastic(PREDICTED_DAYS)
-        experiments.append(sres)
-    print("... done running experiments")
-    
-    all_exp = np.stack(experiments)
+    # NB_EXPERIMENTS = 1000
+    # PREDICTED_DAYS = 80
+    #
+    # print(f"Running {NB_EXPERIMENTS} experiments")
+    # experiments = [] # dims : [experiment #][day][value]
+    #
+    # for i in range(NB_EXPERIMENTS):
+    #     sres = ms.predict_stochastic(PREDICTED_DAYS)
+    #     experiments.append(sres)
+    # print("... done running experiments")
+    #
+    # all_exp = np.stack(experiments)
+    # log_likelihoods = ms.compute_log_likelihoods(all_exp, rows)
+    # log_likelihoods_all_params = sum(log_likelihoods.values())
     #
     #
     # # NB_BINS = NB_EXPERIMENTS//20
