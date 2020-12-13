@@ -360,16 +360,16 @@ def simulation_model(persons,beta,infectedPool):
     school_perc = 162647.5/1000324
 
     mesure_house_A = 0
-    mesure_work_A = 0
-    mesure_community_A = 0
-    mesure_school_A = 0
+    mesure_work_A = 0.75
+    mesure_community_A = 0.75
+    mesure_school_A = 1
 
     mesure_house_SP = 0
-    mesure_work_SP = 0
-    mesure_community_SP = 0
-    mesure_school_SP = 0
+    mesure_work_SP = 0.75
+    mesure_community_SP = 0.75
+    mesure_school_SP = 1
 
-    masque = 0
+    masque = 0.2
     # X = age_apply_social_distancing
     # Y = DSPDT -> 0
     # Y = 00000000000000000000000
@@ -493,19 +493,19 @@ def simulation_model(persons,beta,infectedPool):
                     actually_infected += 1
             else : # la personne vagabonde... donc potentiellement infecte tout le monde? ou seuls les susceptible en dehors du  boulot et de l'école ?
                 # a voir entre communauté et chez elle
-                if ( np.random.binomial(1,0.5)) and targets_A.has_targets_in(Places.HouseHold):
+                if ( np.random.binomial(1,0.5)) and targets_SP.has_targets_in(Places.HouseHold):
                     if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
-                        targets_A.infect_one_in(Places.HouseHold)
+                        targets_SP.infect_one_in(Places.HouseHold) # A -> SP
                         actually_infected += 1
-                    elif np.random.binomial(1,(1-mesure_house_A)*(1-masque)): # soit il respecte les règles et il infecte une personne a la maison. 1-mesure % de chance
-                        targets_A.infect_one_in(Places.HouseHold)
+                    elif np.random.binomial(1,(1-mesure_house_SP)*(1-masque)): # soit il respecte les règles et il infecte une personne a la maison. 1-mesure % de chance
+                        targets_SP.infect_one_in(Places.HouseHold)
                         actually_infected += 1
-                elif targets_A.has_targets_in(Places.Community):
+                elif targets_SP.has_targets_in(Places.Community):
                     if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte d'office
-                        targets_A.infect_one_in(Places.Community)
+                        targets_SP.infect_one_in(Places.Community)
                         actually_infected += 1
-                    elif np.random.binomial(1,(1-mesure_community_A)*(1-masque)): # soit il respecte les règles et il infecte une personne a la communauté. 1-mesure % de chance
-                        targets_A.infect_one_in(Places.Community)
+                    elif np.random.binomial(1,(1-mesure_community_SP)*(1-masque)): # soit il respecte les règles et il infecte une personne a la communauté. 1-mesure % de chance
+                        targets_SP.infect_one_in(Places.Community)
                         actually_infected += 1
 
         elif targets_SP.has_targets_in(Places.Community):
