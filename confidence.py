@@ -109,8 +109,8 @@ class SarahStat(Model):
                             "S" : S+dSdt,
                             "E" : E+dEdt,
                             "A" : A+dAdt,
-                            "SP" : SP+dSPdt,
-                            "HCRF" : H + dHdt + C + dCdt + F + dFdt + R + dRdt
+                            "SP" : SP+dSPdt
+                            "HCRF" : H+ dHdt + C + dCdt + F + dFdt + R + dRdt
                         }
                         partition_persons(persons, repartition)
                         infected_people = [p for p in filter(lambda p: p.infected_A or p.infected_SP, persons)]
@@ -285,8 +285,7 @@ if __name__ == "__main__":
     ms = SarahStat(rows, 1000000)
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
-
-    NB_EXPERIMENTS = 5
+    NB_EXPERIMENTS = 3
     PREDICTED_DAYS = 135
 
     print(f"Running {NB_EXPERIMENTS} experiments")
