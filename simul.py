@@ -6,7 +6,26 @@ import numpy as np
 from math import floor
 
 from load_stats import STATS_HOUSEHOLDS, STATS_WORKPLACES, \
-    STATS_SCHOOLS, STATS_COMMUNITIES_POP
+    STATS_SCHOOLS, STATS_COMMUNITIES_POP, STATS_AGES
+
+ages_cmf = [] # Cumulative mass function
+for age, nb in STATS_AGES:
+    ages_cmf.extend([age] * nb)
+
+def pick_age():
+    return ages_cmf[random.randint(0, len(ages_cmf)-1)]
+
+if False:
+    # Compare this with
+    # https://github.com/ADelau/proj0016-epidemic-data/blob/main/stats/age.png
+    # to check the distribution is respected.
+    ages = [0]*100
+    for i in range(1000000):
+        ages[pick_age()] += 1
+    import matplotlib.pyplot as plt
+    plt.plot(ages)
+    plt.show()
+
 
 class PeopleCounter:
     def __init__(self, people_dict):
@@ -402,6 +421,8 @@ def simulation_model(persons,beta,infectedPool):
         infected_hour = random.randint(0,24) # donc on infectera la personne en fct de l'heure
         # Make sure we can infect people in households before even trying.
         # age = tirage sur age population
+
+        age = pick_age()
         # day = tirage sur nombre de jour dans SP
 
         if infected_hour < 13 \

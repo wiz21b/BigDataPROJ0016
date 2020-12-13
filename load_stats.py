@@ -4,9 +4,7 @@ import json
 with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/stats/age.json") as fp:
     split = [l.decode("utf-8").strip().split(",") for l in fp.readlines()]
 
-    data = [(int(age), int(nb)) for age, nb in split]
-
-    STATS_AGES = [nb for age, nb in data]
+    STATS_AGES = [(int(age), int(nb)) for age, nb in split]
 
 
 with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/stats/communities.json") as fp:
