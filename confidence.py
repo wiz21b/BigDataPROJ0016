@@ -377,7 +377,7 @@ if __name__ == "__main__":
         color = COLORS_DICT[state]
 
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
-        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"{obs}")
+        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"{state}")
 
         #plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state}")
         
