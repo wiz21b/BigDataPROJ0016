@@ -21,7 +21,7 @@ class ObsEnum(Enum):
     NUM_POSITIVE = 1
 
     # number of tests performed during the last day.
-    TESTED = 2
+    NUM_TESTED = 2
 
     # number of individuals currently at the hospital.
     NUM_HOSPITALIZED = 3
@@ -41,11 +41,12 @@ class ObsEnum(Enum):
     CUMULATIVE_TESTED_POSITIVE = 7
     CUMULATIVE_TESTED = 8
     RSURVIVOR = 9
+    DHDT = 10
+    DFDT = 11
 
     # Other data not in the dataset
     # RECOVERED = 10
     # SUSPECT = 12
-    DAILY_HOSPITALIZATIONS = 11
 
 
     def __int__(self):
@@ -67,7 +68,7 @@ class ObsEnum(Enum):
 
 class StateEnum(Enum):
     # The mutually exclusive states of our SEIHCR model
-    SUCEPTIBLE = 0
+    SUSCEPTIBLE = 0
     EXPOSED = 1
     ASYMPTOMATIQUE = 2
     SYMPTOMATIQUE = 3
@@ -75,11 +76,17 @@ class StateEnum(Enum):
     CRITICAL = 5
     FATALITIES = 6
     RECOVERED = 7
+    DHDT = 8
+    DFDT = 9
+    DSPDT = 10
+    DTESTEDDT = 11
+    DTESTEDPOSDT = 12
 
     # Additional deduced states
-    INFECTED_PER_DAY = 8
-    RSURVIVOR = 9
-    CUMULI = 10
+    # INFECTED_PER_DAY = 8
+    # RSURVIVOR = 9
+    # CUMULI = 10
+    
 
     def __int__(self):
         return self.value
@@ -95,9 +102,10 @@ class StateEnum(Enum):
 # The two underlying Enum classes are used to match the indexes of the
 # "fitting and fitted values" between the observations and the states
 class ObsFitEnum(Enum):
-    HOSPITALIZED = ObsEnum.NUM_HOSPITALIZED.value
-    CRITICAL = ObsEnum.NUM_CRITICAL.value
-    RSURVIVOR =  ObsEnum.RSURVIVOR.value
+    DHDT = ObsEnum.DHDT.value
+    DFDT = ObsEnum.DFDT.value
+    DSPDT = ObsEnum.NUM_POSITIVE.value
+    # RSURVIVOR =  ObsEnum.RSURVIVOR.value
 
     def __int__(self):
         return self.value
@@ -107,9 +115,10 @@ class ObsFitEnum(Enum):
 
 
 class StateFitEnum(Enum):
-    HOSPITALIZED = StateEnum.HOSPITALIZED.value
-    CRITICAL = StateEnum.CRITICAL.value
-    RSURVIVOR = StateEnum.RSURVIVOR.value
+    DHDT = StateEnum.DHDT.value
+    DFTD = StateEnum.DFDT.value
+    DSPDT = StateEnum.DSPDT.value
+    # RSURVIVOR = StateEnum.RSURVIVOR.value
 
     def __int__(self):
         return self.value
@@ -119,20 +128,42 @@ class StateFitEnum(Enum):
 
 
 STRINGS = { ObsEnum.NUM_POSITIVE : "num positive",
-            ObsEnum.TESTED : "Tested / day",
-            ObsEnum.DAILY_HOSPITALIZATIONS : "Hospitalized / day",
+            ObsEnum.NUM_TESTED : "Tested / day",
             ObsEnum.CUMULATIVE_TESTED_POSITIVE : "Cumulative tested positive",
             ObsEnum.CUMULATIVE_TESTED : "Cumulative tested",
             ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "Cumulative hospitalizations",
+            StateEnum.SYMPTOMATIQUE : "Symptomatique",
+            StateEnum.ASYMPTOMATIQUE : "Asymptomatique",
+            StateEnum.EXPOSED : "Exposed",
+            StateEnum.SUSCEPTIBLE:"Susceptible",
+            StateEnum.RECOVERED: "Recovered",
+            StateEnum.HOSPITALIZED: "Hospitalized",
+            StateEnum.CRITICAL: "Critical",
+            StateEnum.FATALITIES: "Fatalities"
            }
 
-COLORS_DICT = { ObsEnum.NUM_POSITIVE : 'green',
-                ObsEnum.CUMULATIVE_TESTED_POSITIVE : "green",
-                ObsEnum.TESTED : 'blue',
-                ObsEnum.CUMULATIVE_TESTED : "blue",
-                ObsEnum.DAILY_HOSPITALIZATIONS : 'purple',
-                ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "purple"
-               }
+COLORS_DICT = {ObsEnum.NUM_POSITIVE: 'green',
+                StateEnum.DTESTEDPOSDT:'green',
+                StateEnum.DTESTEDDT:'green',
+               ObsEnum.CUMULATIVE_TESTED_POSITIVE: "green",
+               ObsEnum.NUM_TESTED: 'blue',
+               ObsEnum.CUMULATIVE_TESTED: "blue",
+               ObsEnum.DHDT: 'purple',
+               StateEnum.DHDT: 'purple',
+               ObsEnum.DFDT: 'black',
+               StateEnum.SYMPTOMATIQUE : 'lime',
+               StateEnum.ASYMPTOMATIQUE : 'pink',
+               StateEnum.EXPOSED : 'brown',
+               StateEnum.SUSCEPTIBLE:'grey',
+               StateEnum.RECOVERED: 'cyan',
+               StateEnum.DFDT: 'black',
+               ObsEnum.NUM_HOSPITALIZED: 'purple',
+               ObsEnum.NUM_CRITICAL: 'red',
+               ObsEnum.NUM_FATALITIES: 'black',
+               ObsEnum.CUMULATIVE_HOSPITALIZATIONS: "purple",
+               StateEnum.HOSPITALIZED: 'purple',
+               StateEnum.CRITICAL: 'red',
+               StateEnum.FATALITIES: 'black'}
 
 
 class Model:
@@ -209,6 +240,8 @@ def load_data():
         #     next(csvreader)
 
         rsurvivor_1 = 0
+        cumuldhdt_1 = 0
+        cumuldfdt_1 = 0
 
         for r in csvreader:
             if r:
@@ -218,10 +251,14 @@ def load_data():
                 positive_cumulated += t.num_positive
                 tested_cumulated += t.num_tested
                 # rsurvivor = t.num_cumulative_hospitalizations - t.num_hospitalised - t.num_critical -t.num_fatalities
-
                 rsurvivor = t.num_cumulative_hospitalizations - t.num_hospitalised - t.num_critical -t.num_fatalities - rsurvivor_1
                 rsurvivor_1 = rsurvivor
 
-                rows.append(ir + [positive_cumulated, tested_cumulated,rsurvivor])
+                dhdt = t.num_cumulative_hospitalizations - cumuldhdt_1
+                cumuldhdt_1 = t.num_cumulative_hospitalizations
+
+                dfdt = t.num_fatalities - cumuldfdt_1
+                cumuldfdt_1 += dfdt
+                rows.append(ir + [positive_cumulated, tested_cumulated,rsurvivor,dhdt,dfdt])
 
     return head, observations, rows

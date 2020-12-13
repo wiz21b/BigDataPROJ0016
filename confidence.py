@@ -122,6 +122,8 @@ class SarahStat(Model):
 
         N = self._N
 
+        # actually_infected=modelsimul(rho,....)
+
         dSdt = -beta * S * (A+SP) / N
         dEdt = beta * S * (A+SP) / N - rho * E
         #dAdt = rho * E - sigma*E - gamma4 * A

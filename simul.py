@@ -84,19 +84,19 @@ class Person:
 
     @property
     def susceptible(self):
-        return self.state in ("S")
+        return self.state == "S"
 
     @property
     def infected_A(self):
-        return self.state in ("A")
+        return self.state == "A"
 
     @property
     def infected_E(self):
-        return self.state in ("E")
+        return self.state == "E"
 
     @property
     def infected_SP(self):
-        return self.state in ("SP")
+        return self.state == "SP"
 
     def infectables(self):
         assert self.infected, "Only an infected person can infect others"
@@ -329,7 +329,7 @@ class InfectablePool:
     def has_targets_in(self, group: Places):
         return len(self._targets[group]) > 0
 
-    def infect_one_in(self, group: Places, new_status):
+    def infect_one_in(self, group: Places):
         """ Infect one person in the given group.
         """
 
@@ -351,7 +351,7 @@ class InfectablePool:
 
         assert done, "You tried to infect someone who's not a target"
 
-        person.state = new_status
+        person.state = "E"
 
 
 if __name__ == "__main__":
