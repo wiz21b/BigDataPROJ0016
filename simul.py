@@ -213,9 +213,6 @@ class InfectablePool:
                          Places.School: defaultdict(lambda: 0),
                          Places.Community: defaultdict(lambda: 0)}
 
-        self._keys = dict()
-        for grp, v in self._targets.items():
-            self._keys[grp] = set(v.keys())
 
         # Si A & B peuvent infecter C sur le lieu de travail
         # alors C apparait DEUX fois dans le groupe workplace
@@ -238,6 +235,12 @@ class InfectablePool:
         for k, v in self._targets.items():
             print(f"   {k} : {len(v)} targets")
 
+
+        # For optimisation
+        self._keys = dict()
+        for grp, v in self._targets.items():
+            self._keys[grp] = list(v.keys())
+
     def has_targets_in(self, group: Places):
         return len(self._targets[group]) > 0
 
@@ -245,7 +248,11 @@ class InfectablePool:
         """ Infect one person in the given group.
         """
 
-        person = random.choice(list(self._targets[group].keys()))
+        person = None
+        p_ndx = None
+        while person is None:
+            p_ndx = random.randint(0,len(self._keys[group])-1)
+            person = self._keys[group][p_ndx]
 
         # print(f"Removing someone {person} from {group}")
         # assert isinstance(person, Person)
@@ -263,7 +270,7 @@ class InfectablePool:
                     infectables[person] -= 1
                 else:
                     del infectables[person]
-                    #self._keys[grp].remove(person)
+                    self._keys[group][p_ndx] = None
 
                 done = True
 
