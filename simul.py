@@ -3,6 +3,7 @@ from collections import defaultdict
 from enum import Enum
 import random
 import numpy as np
+from math import floor
 
 from load_stats import STATS_HOUSEHOLDS, STATS_WORKPLACES, \
     STATS_SCHOOLS, STATS_COMMUNITIES_POP
@@ -353,6 +354,181 @@ class InfectablePool:
 
         person.state = "E"
 
+
+def simulation_model(persons,beta):
+
+    N = 1000324
+
+    work_perc = 0.49
+    school_perc = 0.16
+
+    mesure_house_A = 0
+    mesure_work_A = 0
+    mesure_community_A = 0
+    mesure_school_A = 0
+
+    mesure_house_SP = 0
+    mesure_work_SP = 0
+    mesure_community_SP = 0
+    mesure_school_SP = 0
+
+    masque = 0
+    # X = age_apply_social_distancing
+    # Y = DSPDT -> 0
+    # Y = 00000000000000000000000
+    # Y+1 = 11111111111111111 
+    # Y+1 = 000000000000001111111111111
+    # Y+2 = 111111111111112222222222222
+    # Y+2 = 00000000000000000111111112222222222 gamma+tau
+    # Y+3 = 11111111111111111222222223333333333
+
+    infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    targets_A = InfectablePool(infected_people_A)
+
+    # Infected people
+    cnt_infected_A = sum(1 for _ in filter(lambda p: p.infected_A, persons)) # diviser en A et SP
+    print(f"{cnt_infected_A} people A at beginning of simulation")
+    cnt_infected_SP = sum(1 for _ in filter(lambda p: p.infected_SP, persons)) # diviser en A et SP
+    print(f"{cnt_infected_SP} people SP at beginning of simulation")
+
+    # A_plus_SP = cnt_infected
+    S = sum(1 for _ in filter(lambda p: p.susceptible, persons))
+    print(S)
+    quota_to_infect_A = floor(beta*S/N *(cnt_infected_A)) # ici on est en full deterministique
+
+    print(f" A people will infect {quota_to_infect_A} persons")
+    actually_infected = 0
+
+    # on infecte les perosnnes infectée par A
+    for nb_infected in range(quota_to_infect_A): # on prend directement le quota = nombre de personne à infecter ce jour.
+        infected_hour = random.randint(0,24) # donc on infectera la personne en fct de l'heure
+        # Make sure we can infect people in households before even trying.
+        # age = tirage sur age population
+        # day = tirage sur nombre de jour dans SP
+
+        if infected_hour < 13 \
+           and targets_A.has_targets_in(Places.HouseHold):
+            if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
+                targets_A.infect_one_in(Places.HouseHold)
+                actually_infected += 1
+            elif np.random.binomial(1,(1-mesure_house_A)*(1-masque)): # soit il respecte les règles et il infecte une personne a la maison. 1-mesure % de chance
+                targets_A.infect_one_in(Places.HouseHold)
+                actually_infected += 1
+
+        elif infected_hour < 21: # temps travail/school
+            work_school_others = random.uniform(0,1) # a regarder
+            if ( work_school_others < work_perc ): # personne est au boulot :
+                if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte  or (age < X)
+                    targets_A.infect_one_in(Places.Workplace)
+                    actually_infected += 1
+                elif np.random.binomial(1,(1-mesure_work_A)*(1-masque)): # soit il respecte les règles et il infecte une personne au bureau. mesure % de chance
+                    targets_A.infect_one_in(Places.Workplace)
+                    actually_infected += 1
+            elif ( work_school_others < work_perc + school_perc): # personne est a l'école :
+                if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
+                    targets_A.infect_one_in(Places.School)
+                    actually_infected += 1
+                elif np.random.binomial(1,(1-mesure_school_A)*(1-masque)): # soit il respecte les règles et il infecte une personne au bureau. 1-mesure % de chance
+                    targets_A.infect_one_in(Places.School)
+                    actually_infected += 1
+            else : # la personne vagabonde... donc potentiellement infecte tout le monde? ou seuls les susceptible en dehors du  boulot et de l'école ?
+                # a voir entre communauté et chez elle
+                if ( np.random.binomial(1,0.5)) and targets_A.has_targets_in(Places.HouseHold):
+                    if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
+                        targets_A.infect_one_in(Places.HouseHold)
+                        actually_infected += 1
+                    elif np.random.binomial(1,(1-mesure_house_A)*(1-masque)): # soit il respecte les règles et il infecte une personne a la maison. 1-mesure % de chance
+                        targets_A.infect_one_in(Places.HouseHold)
+                        actually_infected += 1
+                elif targets_A.has_targets_in(Places.Community):
+                    if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte d'office
+                        targets_A.infect_one_in(Places.Community)
+                        actually_infected += 1
+                    elif np.random.binomial(1,(1-mesure_community_A)*(1-masque)): # soit il respecte les règles et il infecte une personne a la communauté. 1-mesure % de chance
+                        targets_A.infect_one_in(Places.Community)
+                        actually_infected += 1
+
+        elif targets_A.has_targets_in(Places.Community):
+            if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte d'office
+                targets_A.infect_one_in(Places.Community)
+                actually_infected += 1
+            elif np.random.binomial(1,(1-mesure_community_A)*(1-masque)): # soit il respecte les règles et il infecte une personne a la communauté. 1-mesure % de chance
+                targets_A.infect_one_in(Places.Community)
+                actually_infected += 1
+
+    infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
+    targets_SP = InfectablePool(infected_people_SP)
+    quota_to_infect_SP = floor(beta*S/N *(cnt_infected_SP)) # ici on est en full deterministique
+    print(f"SP people will infect {quota_to_infect_SP} persons")
+
+    # on infecte les perosnnes infectée par SP
+    for nb_infected in range(quota_to_infect_SP): # on prend directement le quota = nombre de personne à infecter ce jour.
+        infected_hour = random.randint(0,24) # donc on infectera la personne en fct de l'heure
+        # Make sure we can infect people in households before even trying.
+        if infected_hour < 13 \
+           and targets_SP.has_targets_in(Places.HouseHold):
+           
+            if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
+                targets_SP.infect_one_in(Places.HouseHold)
+                actually_infected += 1
+            elif np.random.binomial(1,(1-mesure_house_SP)*(1-masque)): # soit il respecte les règles et il infecte une personne a la maison. 1-mesure % de chance
+                targets_SP.infect_one_in(Places.HouseHold)
+                actually_infected += 1
+
+        elif infected_hour < 21 :
+            work_school_others = random.uniform(0,1)
+            if ( work_school_others < work_perc ): # personne est au boulot :
+                if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
+                    targets_SP.infect_one_in(Places.Workplace)
+                    actually_infected += 1
+                elif np.random.binomial(1,(1-mesure_work_SP)*(1-masque)): # soit il respecte les règles et il infecte une personne au bureau. 1-mesure % de chance
+                    targets_SP.infect_one_in(Places.Workplace)
+                    actually_infected += 1
+            elif ( work_school_others < work_perc + school_perc): # personne est a l'école :
+                if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
+                    targets_SP.infect_one_in(Places.School)
+                    actually_infected += 1
+                elif np.random.binomial(1,(1-mesure_school_SP)*(1-masque)): # soit il respecte les règles et il infecte une personne au bureau. 1-mesure % de chance
+                    targets_SP.infect_one_in(Places.School)
+                    actually_infected += 1
+            else : # la personne vagabonde... donc potentiellement infecte tout le monde? ou seuls les susceptible en dehors du  boulot et de l'école ?
+                pass
+                # targets_SP.infect_one_in(Places.Workplace)
+                # actually_infected += 1
+
+        elif targets_SP.has_targets_in(Places.Community):
+            if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte d'office
+                targets_SP.infect_one_in(Places.Community)
+                actually_infected += 1
+            elif np.random.binomial(1,(1-mesure_community_SP)*(1-masque)): # soit il respecte les règles et il infecte une personne a la communauté. 1-mesure % de chance
+                targets_SP.infect_one_in(Places.Community)
+                actually_infected += 1
+
+    print(f"{actually_infected} were infected")
+
+    return actually_infected
+
+def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
+    
+    infected_people_E = [p for p in filter(lambda p: p.infected_E, persons)]
+    for person in random.sample(infected_people_E, rhoE):
+        person.state = "A"
+
+    infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    for person in random.sample(infected_people_A, sigmaA):
+        person.state = "SP"
+
+    infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    for person in random.sample(infected_people_A, gamma4A):
+        person.state = "HCRF"
+
+    infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
+    for person in random.sample(infected_people_SP, gamma1SP + tauSP):
+        person.state = "HCRF"
+
+
+    
+    return
 
 if __name__ == "__main__":
     random.seed(1)

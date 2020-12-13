@@ -3,6 +3,7 @@ import numpy as np
 
 from utils import ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, Model, residuals_error, load_data, residual_sum_of_squares, log_residual_sum_of_squares, COLORS_DICT
 
+from simul import simulation_model, model_update,partition_persons,persons
 
 def population_leave(param, population):
     # param : the proportion of population that should
@@ -93,11 +94,21 @@ class SarahStat(Model):
         data = []
 
         for d in range(days):
+            print("Days = "+ str(days) + "----------------------------------------")
             ys = [S, E, A, SP, H, C, F, R]
 
             if stochastic:
                 if(d<= self._nb_observations+2):
                     dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
+                    if ( d == self._nb_observations+2 ):
+                            repartition = {
+                                "S" : S,
+                                "E" : E,
+                                "A" : A,
+                                "SP" : SP,
+                                "HCRF" : H+C+R+F
+                            }
+                            partition_persons(persons, repartition)                
                 else:
                     dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic_measure(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
             else:
@@ -189,6 +200,7 @@ class SarahStat(Model):
         DTESTEDDT = muSP
         DTESTEDPOSDT = etaSP
 
+
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
     def _model_stochastic_measure(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta):
@@ -207,8 +219,8 @@ class SarahStat(Model):
         # thetaC = theta * C
         # gamma3C = gamma3 * C
 
-        betaS = population_leave((1- 0.2)* beta* S/N,  0.8* (A+SP) )
-        betaS2 = population_leave(beta*S/N,  0.1* (A+SP) )
+        #betaS = population_leave((1- 0.2)* beta* S/N,  0.8* (A+SP) )
+        #betaS2 = population_leave(beta*S/N,  0.1* (A+SP) )
         rhoE = population_leave(rho, E)
         sigmaA = population_leave(sigma, A)
         gamma4A = population_leave(gamma4, A)
@@ -220,6 +232,8 @@ class SarahStat(Model):
         gamma3C = population_leave(gamma3, C)
         muSP = population_leave(mu,sigmaA)# pas sur qu'il faut pas la moyenne 
         etaSP = population_leave(eta,muSP)
+
+        betaS = simulation_model(persons,beta)
 
         dSdt = -betaS
         dEdt =  betaS - rhoE
@@ -237,6 +251,8 @@ class SarahStat(Model):
         dSPIndt = sigmaA
         DTESTEDDT = muSP
         DTESTEDPOSDT = etaSP
+
+        model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP)
 
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
@@ -258,11 +274,11 @@ if __name__ == "__main__":
     mu = 0.67
     eta = 0.8
 
-    ms = SarahStat(rows, 1000000)
+    ms = SarahStat(rows, 1000324)
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
-    NB_EXPERIMENTS = 500
-    PREDICTED_DAYS = 250
+    NB_EXPERIMENTS = 5
+    PREDICTED_DAYS = 150
 
     print(f"Running {NB_EXPERIMENTS} experiments")
     experiments = [] # dims : [experiment #][day][value]
@@ -293,12 +309,12 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
-        plt.savefig("img_final/mask2_"+str(state)+".pdf")
+        plt.savefig("img_final/no_mesure_"+str(state)+".pdf")
 
         plt.title(str(state))
     plt.show()
 
-    PREDICTED_DAYS = 250
+    PREDICTED_DAYS = 150
 
     plt.figure()
     for state in [(StateEnum.HOSPITALIZED),(StateEnum.CRITICAL),StateEnum.EXPOSED,StateEnum.RECOVERED,StateEnum.FATALITIES,

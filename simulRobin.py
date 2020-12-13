@@ -289,55 +289,40 @@ from simul import persons, InfectablePool, partition_persons,Places
 # # -----------------------
 
 
-"appel pour un jour avec les mesures : "
-# on incremente tout les days des Symptomatique,
-repartition = {
-    "S" : 930857,
-    "E" : 5929,
-    "A" : 6611,
-    "SP" : 12445,
-    "H" : 681,
-    "C" : 91,
-    "F" : 39,
-    "R" : 43237
-}
-
-partition_persons(persons, repartition)
-
 
 # ---- 
 
-#appel d'une fonction qui renvoye dSdt.
+def simulation_model(persons):
 
-beta = 0.3
-N = 100324
+    beta = 0.3
+    N = 100324
 
-work_perc = 0.49
-school_perc = 0.16
+    work_perc = 0.49
+    school_perc = 0.16
 
-mesure_house_A = 0
-mesure_work_A = 0
-mesure_community_A = 0
-mesure_school_A = 0
+    mesure_house_A = 0
+    mesure_work_A = 0
+    mesure_community_A = 0
+    mesure_school_A = 0
 
-mesure_house_SP = 0
-mesure_work_SP = 0
-mesure_community_SP = 0
-mesure_school_SP = 0
+    mesure_house_SP = 0
+    mesure_work_SP = 0
+    mesure_community_SP = 0
+    mesure_school_SP = 0
 
-masque = 0
-# X = age_apply_social_distancing
-# Y = DSPDT -> 0
-# Y = 00000000000000000000000
-# Y+1 = 11111111111111111 
-# Y+1 = 000000000000001111111111111
-# Y+2 = 111111111111112222222222222
-# Y+2 = 00000000000000000111111112222222222 gamma+tau
-# Y+3 = 11111111111111111222222223333333333
+    masque = 0
+    # X = age_apply_social_distancing
+    # Y = DSPDT -> 0
+    # Y = 00000000000000000000000
+    # Y+1 = 11111111111111111 
+    # Y+1 = 000000000000001111111111111
+    # Y+2 = 111111111111112222222222222
+    # Y+2 = 00000000000000000111111112222222222 gamma+tau
+    # Y+3 = 11111111111111111222222223333333333
 
-for day in range(20):
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
     targets_A = InfectablePool(infected_people_A)
+
     infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
     targets_SP = InfectablePool(infected_people_SP)
 
@@ -450,18 +435,34 @@ for day in range(20):
 
     return actually_infected
 
+def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
 
-    # il y a eu actually_infected person infected today ->
-    # model normal Faire passer actually_infected de S a E
-    # dsdt
+    infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    for person in random.sample(infected_people_A, gamma4A):
+        person.state = "HCRF"
 
-    # E = sum(1 for _ in filter(lambda p: p.infected_E, persons))
-    # A = sum(1 for _ in filter(lambda p: p.infected_A, persons))
-    # SP = sum(1 for _ in filter(lambda p: p.infected_SP, persons))
+    infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
+    for person in random.sample(infected_people_SP, gamma1SP + tauSP):
+        person.state = "HCRF"
+
+    infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    for person in random.sample(infected_people_A, sigmaA):
+        person.state = "SP"
+
+    infected_people_E = [p for p in filter(lambda p: p.infected_E, persons)]
+    for person in random.sample(infected_people_E, rhoE):
+        person.state = "A"
+
+    infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    for person in random.sample(infected_people_A, gamma4A):
+        person.state = "SP"
+    
+    return
 
 
+    
 
-    # rhoE = (E-actually_infected) *rho # nombre d'arrivant vers A
+    #rhoE = (E-actually_infected) *rho # nombre d'arrivant vers A
     # sigmaA = sigma *A
     # gamma4A = gamma4 *A
     # deltaA
@@ -475,7 +476,9 @@ for day in range(20):
     #     person.state = "SP"
 
     
-
+    # E = sum(1 for _ in filter(lambda p: p.infected_E, persons))
+    # A = sum(1 for _ in filter(lambda p: p.infected_A, persons))
+    # SP = sum(1 for _ in filter(lambda p: p.infected_SP, persons))
 
     # on peut faire tourner "l'autre modèle" un jour, puis reprendre dedt, ... et faire ce tirage aléatoirement ici dans simul
     

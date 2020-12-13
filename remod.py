@@ -14,7 +14,7 @@ from utils import ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, Model, residuals
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.cm as cm
-
+from scipy.stats import binom
 
 
 # For repeatiblity (but less random numbers)
@@ -65,9 +65,9 @@ class SarahStat(Model):
         self._evaluation = 0
         self._iterations = 0
 
-        E0 = 15
-        A0 = 10
-        SP0 = 5
+        E0 = 15 * 2
+        A0 = 10 * 2
+        SP0 = 5 * 2
         H0 = self._observations[0][ObsEnum.NUM_HOSPITALIZED.value]
         C0 = self._observations[0][ObsEnum.NUM_CRITICAL.value]
         R0 = 0
@@ -88,122 +88,171 @@ class SarahStat(Model):
         # the initial parameters of the model with their bounds to delimit
         # the ranges of possible values
         """
+
         min_incubation_time = 1
         max_incubation_time = 5
         min_symptomatic_time = 4
         max_symptomatic_time = 10
 
         error_margin = 0.2
+        print(self._observations[:, ObsEnum.NUM_POSITIVE.value])
         cumulative_positives = np.cumsum(self._observations[:, ObsEnum.NUM_POSITIVE.value])
         cumulative_hospitalizations = self._observations[:, ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value]
 
-        tau_0 = cumulative_hospitalizations[-1] / cumulative_positives[-2]
-        tau_min = tau_0 * (1 - error_margin)
-        tau_max = max(1, tau_0 * (1 + error_margin))
-        #tau_bounds = [tau_0 * (1 - error_margin), tau_0, max(1, tau_0 * (1 + error_margin))]
+        # ----------------------------------
+        # Tau (SP -> H)
+        cumulative_positives = np.cumsum(self._observations[:, ObsEnum.NUM_POSITIVE.value])
+        cumulative_hospitalizations = self._observations[:, ObsEnum.CUMULATIVE_HOSPITALIZATIONS.value]
+        tau_0 = 0.01
+        error_margin = 0.2
+        tau_min = 0.001
+        tau_max = 0.1
+        tau_bounds = [tau_min, tau_0, min(1, tau_max)]
 
-        gamma1_max = 1/ min_symptomatic_time
-        gamma1_min = 0.02
-        gamma1_0 = 1/(max_symptomatic_time + min_symptomatic_time)
-        #gamma1_bounds = [gamma1_min, gamma1_0, gamma1_max]
-
-        gamma2_min = 0.02
-        gamma2_max = 0.999
-        gamma2_0 = 0.5 # arbitrary choice
-
-        gamma3_min = 0.02
-        gamma3_max = 0.999
-        gamma3_0 = 0.5 # arbitrary choice
-        #gamma2_bounds = [0.02, gamma2_0, 1]
-        #gamma3_bounds = [0.02, gamma3_0, 1]
-
+        # ------------------------------------------------------------
+        # gamma4 : the rate at which people leave the E state to go to the R state
+        # "best-case": if people recover all directly after min_incubation_time
         gamma4_max = 1 / min_incubation_time
+        # "worst-case": if even after max_incubation_time, people do not recover because they are
+        # asymptomatic for a long time, corresponding exactly to the time a symptomatic who is never hospitalised
+        # would take to recover (max_incubation_time + max_symptomatic_time).
         gamma4_min = 1 / (max_incubation_time + max_symptomatic_time)
-        gamma4_0 = (gamma4_max + gamma4_min) / 2
-        #gamma4_bounds = [gamma4_min, gamma4_0, gamma4_max]
+        # "avg-case":
+        gamma4_0 = 0.12
+        gamma4_bounds = [gamma4_min, gamma4_0, gamma4_max]
 
-        beta_0 = 0.5
-        beta_min = 0.01
-        beta_max = 2
-        #beta_bounds = [beta_min, beta_0, beta_max]
+        # ----------------------------------
+        # Gamma1 (SP -> R)
+        # "best-case": if people recover all in min_symptomatic_time
+        gamma1_max = 1 / min_symptomatic_time
+        # "worst-case": if people do not recover and go to the H state
+        gamma1_min = 1/max_symptomatic_time
+        gamma1_0 = 0.23 #2 / (max_symptomatic_time + min_symptomatic_time)
+        gamma1_bounds = [gamma1_min, gamma1_0, gamma1_max]
 
-        cumulative_criticals_max = np.sum(self._observations[:, ObsEnum.NUM_CRITICAL.value])
-        cumulative_criticals_min = self._observations[-1, ObsEnum.NUM_CRITICAL.value]
+        # ----------------------------------
+        # Gamma2 (H -> R) & Gamma3 (C -> R)
+        gamma2_min = 1/15
+        gamma2_0 = 1/13 #0.2  # arbitrary choice
+        gamma2_max = 0.5
+        gamma2_bounds = [gamma2_min, gamma2_0, gamma2_max]
 
-        delta_max = cumulative_criticals_max / cumulative_hospitalizations[-2]
-        if delta_max < 1:
-            tmp = delta_max
-            if tmp > 0:
-                delta_max = tmp
-            else:
-                delta_max = 0
-        else:
-            delta_max = 1
-        #delta_max = max(0, min(delta_max, 1))
-        delta_min = cumulative_criticals_min / cumulative_hospitalizations[-2]
-        #delta_min = min(max(delta_min, 0), 1)
-        if delta_min > 0:
-            tmp = delta_min
-            if tmp < 1:
-                delta_min = tmp
-            else:
-                delta_min = 0
-        else:
-            delta_min = 0
+        gamma3_min = 1/20
+        gamma3_0 = 1/19
+        gamma3_max = 0.5    
+        gamma3_bounds = [gamma3_min, gamma3_0, gamma3_max]
 
-        delta_0 = delta_min * 0.7 + delta_max * 0.3
-        #delta_bounds = [delta_min, delta_0, delta_max]
+        # gamma2_min = 1/10 # on peut rester en moyenne une bonne semaine donc disons 10 jours
+        # gamma2_max = 0.4 # quand on va a l'hopital on reste pas 1 jour, au moins 2-3
+        # gamma2_0 = 0.3
+        # gamma2_bounds = [gamma2_min, gamma2_0, gamma2_max] # quand on va a l'hopital 
 
+        # gamma3_min = 1/20 # on peut rester 15 jours-3semaines
+        # gamma3_max = 0.3 # encore une fois on va pas en critique pour 1-2 jours mais 3-4 minimum
+        # gamma3_0 = 1/10
+        # gamma3_bounds = [gamma3_min, gamma3_0, gamma3_max]
+
+        # ------------------------------------------------------------
+        # The reproduction number R0 is the number of people
+        # each infected person will infect during the time he is infectious
+        # R0 = beta * infectious_time
+        # We can make the assumption that once an individual is infectious during the time
+        # corresponding to max_symptomatic_time even if he he is asymptomatic.
+        # Once being in hospital, he will not infect anyone else anymore.
+        # Under this assumption, infectious_time is
+        # included in [min_symptomatic_time, max_symptomatic_time]
+        # R0 = 0.1 # on average, for 10 infected person, only one susceptible will become infected
+        R0_min = 1  # or else the virus is not growing exponentially
+        R0_max = 2.8 * 1.5  # the most virulent influenza pandemic
+        # and we were told that covid-20 looked similar to influenza
+        # We multiply by 2 (arbitrary choice) because covid-20 might
+        # become more virulent than the most virulent influenza pandemic
+        # (which is the case for covid-19 with a R0 that got to 3-4 at peak period)
+        R0_avg = (R0_min + R0_max) / 2
+        infectious_time = (min_symptomatic_time + max_symptomatic_time) / 2
+        beta_0 = R0_avg / infectious_time  # 0.39
+        beta_min = R0_min / max_symptomatic_time
+        beta_max = R0_max / min_symptomatic_time
+
+        beta_0 = 0.32
+        beta_min = 0.3
+        beta_max = 0.55
+        beta_bounds = [0.30, 0.34, 0.55]
+
+
+
+        # ------------------------------------------------------------
+        delta_min = 1 / 100 # 1/10
+        delta_max = 57/1297
+        delta_0 = 0.025
+        delta_bounds = [delta_min, delta_0, delta_max]
+        
+        # ------------------------------------------------------------
+        # E-> A
         # For the period of incubation
         rho_max = 1
-        rho_0 = 1/3
-        rho_min = 1/5
-        #rho_bounds = [rho_min,rho_0,rho_max]
+        rho_0 = 0.89 #2 / (min_incubation_time + max_incubation_time)
+        rho_min = 1 / max_incubation_time
+        rho_bounds = [rho_min, rho_0, rho_max]
 
-        #For the death...
-        theta_min = 0.1
-        theta_max = 1
-        theta_0 = 0.5
-        #theta_bounds = [theta_min,theta_0,theta_max]
+        # ------------------------------------------------------------
+        # C-> F
+        # For the death...
+        theta_min = 0.01
+        theta_max = 0.2
+        theta_0 = 0.04
+        theta_bounds = [theta_min, theta_0, theta_max]
 
+        # ------------------------------------------------------------
+        sigma_max = 0.7
+        sigma_min = 0.5 # = 1 / 100
+        sigma_0 = 0.6 #(sigma_max + sigma_min) / 2
+        sigma_bounds = [sigma_min, sigma_0, sigma_max]
 
-        sigma_max = 1/4
-        sigma_min = 1/20
-        sigma_0 = (sigma_max + sigma_min) / 2
-        #sigma_bounds = [sigma_min, sigma_0, sigma_max]
+        mu_max = 0.90
+        mu_min = 0.5
+        mu_0 = 0.67
+        mu_bounds = [mu_min,mu_0,mu_max]
+        # nombre teste, teste entre 30 et 70% des gens sembent pas fou
+
+        eta_max = 0.85
+        eta_min = 0.7
+        eta_0 = 0.8
+        eta_bounds = [eta_min,eta_0,eta_max]
+
 
         #Best first estim so far
-        b_gamma1 = 0.02712409
-        b_gamma2 = 0.50743732
-        b_gamma3 = 0.3725912
-        b_gamma4 = 0.4588356
-        b_beta = 0.77522
-        b_tau = 0.660597
-        b_delta = 0.153682
-        b_sigma = 0.19352783
-        b_rho = 0.545133
-        b_theta = 0.31228517
+        # b_gamma1 = 0.02712409
+        # b_gamma2 = 0.50743732
+        # b_gamma3 = 0.3725912
+        # b_gamma4 = 0.4588356
+        # b_beta = 0.77522
+        # b_tau = 0.660597
+        # b_delta = 0.153682
+        # b_sigma = 0.19352783
+        # b_rho = 0.545133
+        # b_theta = 0.31228517
 
-        best_preprocess = [b_gamma1, b_gamma2, b_gamma3, b_gamma4, b_beta, b_tau, b_delta, b_sigma, b_rho, b_theta]
-        best_preprocess = self._params_array_to_dict(best_preprocess)
-        mini = 0
+        # best_preprocess = [b_gamma1, b_gamma2, b_gamma3, b_gamma4, b_beta, b_tau, b_delta, b_sigma, b_rho, b_theta]
+        # best_preprocess = self._params_array_to_dict(best_preprocess)
+        # mini = 0
 
-        print(best_preprocess)
-        self._preprocess = False
+        # print(best_preprocess)
+        # self._preprocess = False
 
-        gamma1_bounds = [gamma1_min, best_preprocess['gamma1'], gamma1_max]
-        gamma2_bounds = [gamma2_min, best_preprocess['gamma2'], gamma2_max]
-        gamma3_bounds = [gamma3_min, best_preprocess['gamma3'], gamma3_max]
-        gamma4_bounds = [gamma4_min, best_preprocess['gamma4'], gamma4_max]
-        beta_bounds = [beta_min, best_preprocess['beta'], beta_max]
-        tau_bounds = [tau_min, best_preprocess['tau'], tau_max]
-        delta_bounds = [delta_min, best_preprocess['delta'], delta_max]
-        sigma_bounds = [sigma_min, best_preprocess['sigma'], sigma_max]
-        rho_bounds = [rho_min, best_preprocess['rho'], rho_max]
-        theta_bounds = [theta_min, best_preprocess['theta'], theta_max]
+        # gamma1_bounds = [gamma1_min, best_preprocess['gamma1'], gamma1_max]
+        # gamma2_bounds = [gamma2_min, best_preprocess['gamma2'], gamma2_max]
+        # gamma3_bounds = [gamma3_min, best_preprocess['gamma3'], gamma3_max]
+        # gamma4_bounds = [gamma4_min, best_preprocess['gamma4'], gamma4_max]
+        # beta_bounds = [beta_min, best_preprocess['beta'], beta_max]
+        # tau_bounds = [tau_min, best_preprocess['tau'], tau_max]
+        # delta_bounds = [delta_min, best_preprocess['delta'], delta_max]
+        # sigma_bounds = [sigma_min, best_preprocess['sigma'], sigma_max]
+        # rho_bounds = [rho_min, best_preprocess['rho'], rho_max]
+        # theta_bounds = [theta_min, best_preprocess['theta'], theta_max]
 
-        bounds = [gamma1_bounds, gamma2_bounds, gamma3_bounds, gamma4_bounds, beta_bounds, tau_bounds, delta_bounds, sigma_bounds,rho_bounds,theta_bounds]
-        param_names = ['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta']
+        bounds = [gamma1_bounds, gamma2_bounds, gamma3_bounds, gamma4_bounds, beta_bounds, tau_bounds, delta_bounds, sigma_bounds,rho_bounds,theta_bounds,mu_bounds,eta_bounds]
+        param_names = ['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta','mu','eta']
         params = Parameters()
 
         for param_str, param_bounds in zip(param_names, bounds):
@@ -212,7 +261,10 @@ class SarahStat(Model):
         return params
 
 
+
+
     def _plumb_scipy(self, params, days, error_func=None):
+        lhs = dict()
 
         days = len(self._observations)
 
@@ -229,28 +281,58 @@ class SarahStat(Model):
         #             infected_per_day, R_survivor, cumulI,
         #              cumulH, R_out_HC])
 
-        rselect = np.ix_(range(res.shape[0]),
-                         [StateEnum.HOSPITALIZED.value,
-                          StateEnum.CRITICAL.value,
-                          StateEnum.FATALITIES.value,
-                          StateEnum.RSURVIVOR.value])
+        for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT,params_as_dict['tau']),
+                                (StateEnum.DSPDT, ObsEnum.NUM_TESTED,params_as_dict['mu']),(StateEnum.DTESTEDDT, ObsEnum.NUM_POSITIVE,params_as_dict['eta'])]: 
+        # donc 1) depuis le nombre predit de personne SymPtomatique et le parametre tau, je regarde si l'observations dhdt est probable
+        #      2) depuis le nombre predit de personne Critical et le parametre theta, je regarde si l'observations dfdt est probable
+        #      3) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt) avec le parmetre de test(mu), je regarde si l'observation num_tested est probable
+        #      4) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt), je regarde la proportion de test realisees ( mu*sigma*A) avec le parmetre de sensibilite (eta), je regarde si l'observation num_positive est probable
+            log_likelihood = 0
+            for day_ndx in np.arange(10,days-8):
+                # Take all the values of experiments on a given day day_ndx
+                # for a given measurement (state.value)
+                
+                observation = max(1,self._observations[day_ndx][obs.value])
+                prediction = res[day_ndx][state.value]
+                print(str(state) + " d = "+ str(np.ceil(prediction)) + "-----------" + " obs = " + str(observation) + "\n")
+                try :
+                    x = binom.pmf(observation,np.ceil(np.mean(prediction)),param)
+                    log_bin = np.log(x)
+                except FloatingPointError as exception:
+                    log_bin = -999
+                
+                print(" log_bin = " + str(x) + "---------------------------------------------------")
+                log_likelihood += log_bin
 
-        oselect = np.ix_(range(self._nb_observations),
-                         [ObsEnum.NUM_HOSPITALIZED.value,
-                          ObsEnum.NUM_CRITICAL.value,
-                          ObsEnum.NUM_FATALITIES.value,
-                          ObsEnum.RSURVIVOR.value])
+            lhs[obs] = log_likelihood
 
-        short_obs = self._observations[oselect][10:]
-        short_res = res[rselect][10:]
+            #print(f"likelihood {state} over {days} days: log_likelihood:{log_likelihood}")
 
-        rel = short_obs
-        rel[rel == 0] = 1
-        rel = 1/rel
+        return -sum(lhs.values())
 
-        residuals = (short_res - short_obs)*rel
-        least_squares = np.sum(residuals*residuals)
-        return least_squares
+        # rselect = np.ix_(range(res.shape[0]),
+        #                  [StateEnum.HOSPITALIZED.value,
+        #                  StateEnum.DSPDT.value,
+        #                  StateEnum.DHDT.value,
+        #                   StateEnum.CRITICAL.value,
+        #                   StateEnum.FATALITIES.value])
+
+        # oselect = np.ix_(range(self._nb_observations),
+        #                  [ObsEnum.NUM_HOSPITALIZED.value,
+        #                  ObsEnum.NUM_POSITIVE.value,
+        #                  ObsEnum.DHDT.value,
+        #                   ObsEnum.NUM_CRITICAL.value,
+        #                   ObsEnum.NUM_FATALITIES.value])
+
+        # short_obs = self._observations[oselect][10:]
+        # short_res = res[rselect][10:]
+
+        # rel = short_obs
+        # rel[rel == 0] = 1
+        # rel = 1/rel
+
+
+        # return least_squares
 
 
     def fit_parameters(self, error_func):
@@ -304,6 +386,8 @@ class SarahStat(Model):
         sigma = params['sigma']
         rho = params['rho']
         theta = params['theta']
+        mu = params['mu']
+        eta = params['eta']
 
         S, E, A, SP, H, C, F, R, infected_per_day, R_out_HC, cumulI = initial_conditions
         cumulH = 0
@@ -314,9 +398,9 @@ class SarahStat(Model):
             ys = [S, E, A, SP, H, C, F, R]
 
             if stochastic:
-                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHOutdt = self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta)
+                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
             else:
-                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHOutdt = self._model(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta)
+                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT = self._model(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
 
             S += dSdt
             E += dEdt
@@ -327,17 +411,12 @@ class SarahStat(Model):
             F += dFdt
             R += dRdt
 
-            cumulH += dHOutdt
-            R_survivor = cumulH - H - C - F
-
-            data.append([S, E, A, SP, H, C, F, R,
-                         infected_per_day, R_survivor, cumulI,
-                         cumulH, R_out_HC])
+            data.append([S, E, A, SP, H, C, F, R,dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT])
 
         return np.array(data)
 
 
-    def _model(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta):
+    def _model(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta):
         S, E, A, SP, H, C, F, R = ys
 
         N = self._N
@@ -353,13 +432,18 @@ class SarahStat(Model):
         dFdt = theta * C
         dRdt = gamma1 * SP + gamma2 * H + gamma3 * C + gamma4 * A
 
-        dHOutdt = tau*SP
+        dHIndt = tau*SP
+        dFIndt = theta *C
+        dSPIndt = sigma * A
+        DTESTEDDT = dSPIndt*mu
+        DTESTEDPOSDT = DTESTEDDT * eta # eta = sensibilite
 
-        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHOutdt]
+
+        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
 
 
-    def _model_stochastic(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta):
+    def _model_stochastic(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta):
         S, E, A, SP, H, C, F, R = ys
 
         N = self._N
@@ -385,6 +469,9 @@ class SarahStat(Model):
         gamma2H = population_leave(gamma2, H)
         thetaC = population_leave(theta, C)
         gamma3C = population_leave(gamma3, C)
+        muSP = population_leave(mu,sigmaA)# pas sur qu'il faut pas la moyenne 
+        etaSP = population_leave(eta,muSP)
+
 
         dSdt = -betaS
         dEdt =  betaS - rhoE
@@ -397,48 +484,19 @@ class SarahStat(Model):
         dFdt = thetaC
         dRdt = gamma1SP + gamma2H + gamma3C + gamma4A
 
-        dHOutdt = tau*SP
+        dHIndt = tauSP
+        dFIndt = thetaC
+        dSPIndt = sigmaA
+        DTESTEDDT = muSP
+        DTESTEDPOSDT = etaSP
 
-        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHOutdt]
+        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
 
     def _params_array_to_dict(self, params):
         return dict(
-            zip(['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta'],
+            zip(['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta','mu','eta'],
                 params))
-
-
-    def compute_log_likelihoods(self, all_exp, obs_rows):
-        lhs = dict()
-
-        days = obs_rows.shape[1]
-
-        for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED),
-                           (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL),
-                           (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
-
-            log_likelihood = 0
-            for day_ndx in range(days):
-                # Take all the values of experiments on a given day day_ndx
-                # for a given measurement (state.value)
-                d = all_exp[:, day_ndx, state.value]
-
-                # Compute the PDF of the epxeriments
-                model = KernelDensity(bandwidth=max(1, (np.amax(d) / 10)), kernel='gaussian')
-                model.fit(d.reshape(-1, 1))
-
-                observation = obs_rows[day_ndx, obs.value]
-
-                # score sample return log of probabilities !
-                # score_samples returns log of probability
-                # exp(...) => Probaiblity
-                log_likelihood += model.score_samples([[observation]])
-
-            lhs[obs] = log_likelihood
-
-            #print(f"likelihood {state} over {days} days: log_likelihood:{log_likelihood}")
-
-        return lhs
 
 
     def _plumb_scipy_stocha(self, params):
@@ -449,7 +507,7 @@ class SarahStat(Model):
         # so we convert.
         params_as_dict = self._params_array_to_dict(params)
 
-        NB_EXPERIMENTS = 1000
+        NB_EXPERIMENTS = 100
         PREDICTED_DAYS = 80
 
         # print(f"Running {NB_EXPERIMENTS} experiments")
@@ -464,15 +522,40 @@ class SarahStat(Model):
         # print("... done running experiments")
 
         all_exp = np.stack(experiments)
-        log_likelihoods = self.compute_log_likelihoods(all_exp, rows)
+        lhs = dict()
 
-        # FIXME Check the sign
-        ll = - sum(log_likelihoods.values())
-        print(f"{self._iterations} {ll}")
-        print(params)
-        self._iterations += 1
+        for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT,params_as_dict['tau']),
+                                (StateEnum.DSPDT, ObsEnum.NUM_TESTED,params_as_dict['mu']),(StateEnum.DTESTEDDT, ObsEnum.NUM_POSITIVE,params_as_dict['eta'])]: 
+        # donc 1) depuis le nombre predit de personne SymPtomatique et le parametre tau, je regarde si l'observations dhdt est probable
+        #      2) depuis le nombre predit de personne Critical et le parametre theta, je regarde si l'observations dfdt est probable
+        #      3) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt) avec le parmetre de test(mu), je regarde si l'observation num_tested est probable
+        #      4) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt), je regarde la proportion de test realisees ( mu*sigma*A) avec le parmetre de sensibilite (eta), je regarde si l'observation num_positive est probable
+            log_likelihood = 0
+            for day_ndx in np.arange(10,days-8):
+                # Take all the values of experiments on a given day day_ndx
+                # for a given measurement (state.value)
+                
+                observation = max(1,self._observations[day_ndx][obs.value])
+                d = all_exp[:, day_ndx, state.value] # binomial
+                prediction = np.mean(d)
+                print(str(state) + " d = "+ str(np.ceil(prediction)) + "-----------" + " obs = " + str(observation) + "\n")
+                try :
+                    x = binom.pmf(observation,np.ceil(prediction),param)
+                    log_bin = np.log(x)
+                except FloatingPointError as exception:
+                    log_bin = -999
+                print(" log_bin = " + str(x) + "---------------------------------------------------")
+                log_likelihood += log_bin
 
-        return ll
+            lhs[obs] = log_likelihood
+        return -sum(lhs.values())
+        # # FIXME Check the sign
+        # ll = - sum(log_likelihoods.values())
+        # #print(f"{self._iterations} {ll}")
+        # print(params)
+        # self._iterations += 1
+
+        # return ll
 
 
     def stocha_fit_parameters(self):
@@ -482,7 +565,6 @@ class SarahStat(Model):
 
         # Find first set of parameters
         params = self.get_initial_parameters()
-        self.fit_parameters(residual_sum_of_squares)
 
         # Group parameters
         fit_params = self._fit_params
@@ -508,6 +590,7 @@ class SarahStat(Model):
 
 
 
+
 if __name__ == "__main__":
     head, observations, rows = load_data()
     rows = np.array(rows)
@@ -515,156 +598,264 @@ if __name__ == "__main__":
 
     ms = SarahStat(rows, 1000000)
 
+    # sres = ms.predict(80)
+
+    # plt.figure()
+    # plt.title('HOSPITALIZED / PER DAY fit')
+    # t = StateEnum.DHDT
+    # plt.plot(sres[:, t.value], label=f"{t} (model)")
+    # u = ObsEnum.DHDT
+    # plt.plot(rows[:, u.value], "--", label=f"{u} (real)")
+    # plt.savefig('dhdtbefore.pdf')
+
+    # plt.figure()
+    # plt.title('FATALITIES / PER DAY fit')
+    # t = StateEnum.DFDT
+    # plt.plot(sres[:, t.value], label=f"{t} (model)")
+    # u = ObsEnum.DFDT
+    # plt.plot(rows[:, u.value], "--", label=f"{u} (real)")
+    # plt.savefig('dftfbefore.pdf')
+
+    # plt.figure()    
+    # plt.title('NUM_tested / PER DAY fit')
+    # t = StateEnum.DTESTEDDT
+    # plt.plot(sres[:, t.value], label=f"{t} (model)")
+    # u = ObsEnum.NUM_TESTED
+    # plt.plot(rows[:, u.value], "--", label=f"{u} (real)")
+    # plt.savefig('dtesteddtbefore.pdf')
+
+    # plt.figure()
+    # plt.title('NUM_Positive / PER DAY fit')
+    # t = StateEnum.DTESTEDPOSDT
+    # plt.plot(sres[:, t.value], label=f"{t} (model)")
+    # u = ObsEnum.NUM_POSITIVE
+    # plt.plot(rows[:, u.value], "--", label=f"{u} (real)")
+    # plt.savefig('dtestedposdtbefore.pdf')
+    
+
+    # ms.fit_parameters(None)
     ms.stocha_fit_parameters()
 
-    ms.fit_parameters(residual_sum_of_squares)
+    sres = ms.predict(70)
 
     plt.figure()
-    plt.title('LM fit')
+    plt.title('HOSPITALIZED / PER DAY fit')
+    t = StateEnum.DHDT
+    plt.plot(sres[:, t.value], label=str(t) +" (model)")
+    u = ObsEnum.DHDT
+    plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
+    plt.savefig('0image/dhdt.pdf')
 
+    plt.figure()
+    plt.title('Hospitalized')
+    t = StateEnum.HOSPITALIZED
+    plt.plot(sres[:, t.value], label=str(t) +" (model)")
+    u = ObsEnum.NUM_HOSPITALIZED
+    plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
+    plt.savefig('0image/hospitalized.pdf')
+
+    plt.figure()
+    plt.title('Critical')
+    t = StateEnum.CRITICAL
+    plt.plot(sres[:, t.value], label=str(t) +" (model)")
+    u = ObsEnum.NUM_CRITICAL
+    plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
+    plt.savefig('0image/critical.pdf')
+
+    plt.figure()
+    plt.title('FATALITIES')
+    t = StateEnum.FATALITIES
+    plt.plot(sres[:, t.value], label=str(t) +" (model)")
+    u = ObsEnum.NUM_FATALITIES
+    plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
+    plt.savefig('0image/FATALITIES.pdf')
+
+    plt.figure()
+    plt.title('FATALITIES / PER DAY fit')
+    t = StateEnum.DFDT
+    plt.plot(sres[:, t.value], label=str(t) +" (model)")
+    u = ObsEnum.DFDT
+    plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
+    plt.savefig('0image/dftf.pdf')
+
+    plt.figure()    
+    plt.title('NUM_tested / PER DAY fit')
+    t = StateEnum.DTESTEDDT
+    plt.plot(sres[:, t.value], label=str(t) +" (model)")
+    u = ObsEnum.NUM_TESTED
+    plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
+    plt.savefig('0image/dtesteddt.pdf')
+
+    plt.figure()
+    plt.title('NUM_Positive / PER DAY fit')
+    t = StateEnum.DTESTEDPOSDT
+    plt.plot(sres[:, t.value], label=str(t) +" (model)")
+    u = ObsEnum.NUM_POSITIVE
+    plt.plot(rows[:, u.value], "--", label=str(u) +" (real)")
+    plt.savefig('0image/dtestedposdt.pdf')
+
+    #
+    # plt.figure()
+    # plt.title('LM fit')
+    #
+    #
 
     NB_EXPERIMENTS = 1000
     PREDICTED_DAYS = 80
-
+    
     print(f"Running {NB_EXPERIMENTS} experiments")
     experiments = [] # dims : [experiment #][day][value]
-
+    
     for i in range(NB_EXPERIMENTS):
         sres = ms.predict_stochastic(PREDICTED_DAYS)
         experiments.append(sres)
     print("... done running experiments")
-
+    
     all_exp = np.stack(experiments)
-    log_likelihoods = compute_log_likelihoods(all_exp, rows)
-    log_likelihoods_all_params = sum(log_likelihoods.values())
-
-    exit()
-
-    NB_BINS = NB_EXPERIMENTS//20
-
-    for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED),
-                       (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL)]:
-
-        likelihood = 1
-        log_likelihood = 0
-        for day_ndx in range(days):
-            d = all_exp[:, day_ndx, state.value]
-            histo = np.histogram(d,bins=NB_BINS)
-
-            # From histogram counts to probabilities
-            proba = histo[0] * (1/np.sum(histo[0]))
-
-            # In which bin fits the observation ?
-            observation = rows[day_ndx, obs.value]
-            tbin = np.digitize(observation, histo[1]) - 1
-
-            if tbin < 0:
-                tbin = 0
-            elif tbin >= NB_BINS:
-                tbin = NB_BINS - 1
-
-
-            prob = proba[tbin]
-
-            if True or prob == 0:
-                # print(histo)
-                # print(observation)
-
-                # x = np.arange(len(proba))
-                # idx = np.nonzero(proba)
-                # interp = interp1d(x[idx], proba[idx])
-                # print(interp(tbin))
-
-                model = KernelDensity(bandwidth=max(1, (np.amax(d) / 10)), kernel='gaussian')
-                model.fit(d.reshape(-1, 1))
-
-
-                ls = np.linspace(observation-0.5,observation+0.5,2)[:,np.newaxis]
-                prob = np.sum( np.exp( model.score_samples(ls))) / 2
-
-                prob2 = model.score_samples([[observation]])
-
-
-
-                # # Debug
-                # print(f"obs:{observation} prob:{prob} prob2:{prob2}")
-                # plt.figure()
-
-                # density, bins = np.histogram(d, bins=NB_BINS, density=True)
-                # unity_density = density / density.sum()
-                # widths = bins[:-1] - bins[1:]
-                # #plt.bar(bins[1:], unity_density, width=widths)
-
-                # plt.hist(d,bins=NB_BINS,density=True)
-
-                # log_dens = model.score_samples(histo[1].reshape( -1, 1))
-                # plt.plot(histo[1], np.exp(log_dens), c='red')
-                # plt.title(f"Day:{day_ndx}")
-                # plt.show()
-
-            likelihood *= prob
-            log_likelihood += prob2
-
-        print(f"likelihood {state}: {likelihood}, log_likelihood:{log_likelihood}")
-
-    exit()
-
-    for sres in experiments:
-        for t in [StateEnum.RSURVIVOR]: #, StateEnum.HOSPITALIZED, StateEnum.CRITICAL, StateEnum.FATALITIES]:
-            plt.plot(sres[:, t.value], c=COLORS_DICT[t], alpha=0.05, linewidth=0.4)
-
-    sres = ms.predict(250)
-    for t in [StateEnum.RSURVIVOR, StateEnum.HOSPITALIZED, StateEnum.CRITICAL, StateEnum.FATALITIES]:
-        plt.plot(sres[:, t.value], c=COLORS_DICT[t], label=f"{t} (model)")
-
-    for u in [ObsEnum.RSURVIVOR, ObsEnum.NUM_HOSPITALIZED, ObsEnum.NUM_CRITICAL,ObsEnum.NUM_FATALITIES]:
-        plt.plot(rows[:, u.value], "--", c=COLORS_DICT[u], label=f"{u} (real)")
-
-
-    plt.title('Curve Fitting')
-    plt.xlabel('Days')
-    plt.ylabel('Individuals')
-    prediction_days = 10 # prediction at prediction_days
-    plt.xlim(0, days + prediction_days)
-    plt.ylim(0, 1000)
-    plt.legend()
-    plt.savefig('data_fit.pdf')
-    plt.savefig(f'data_fit_{days}_days.pdf')
-    plt.show()
-
-    plt.figure()
-    jet = plt.get_cmap('jet')
-    days_max = min(200, PREDICTED_DAYS)
-    cNorm  = colors.Normalize(vmin=20, vmax=days_max)
-    scalarMap = cm.ScalarMappable(norm=cNorm, cmap=jet)
-    for day in range(60,days_max):
-        d = [experiments[exp_i][day, StateEnum.HOSPITALIZED.value] for exp_i in range(NB_EXPERIMENTS)]
-        hd = np.histogram(d,bins=50)[0]
-        plt.plot(hd, c=scalarMap.to_rgba(day), alpha=0.2)
-    plt.title("Normalized histograms of 1000/day hospitalized values (color = day)")
-    plt.xticks([])
-    plt.colorbar(scalarMap)
-
-    plt.figure()
-    for t in [StateEnum.EXPOSED, StateEnum.ASYMPTOMATIQUE, StateEnum.SYMPTOMATIQUE ,StateEnum.HOSPITALIZED, StateEnum.CRITICAL, StateEnum.FATALITIES]:
-        plt.plot(sres[:, t.value], label=f"{t} (model)")
-
-    plt.title('Exposed - Infectious - Hospitalized - Critical')
-    plt.xlabel('Days')
-    plt.ylabel('Individuals')
-    plt.legend()
-    plt.savefig('projection_zoom.pdf')
-    plt.savefig(f'projection_zoom_{days}_days.pdf')
-    plt.show()
-
-    plt.figure()
-    for t in [StateEnum.SUCEPTIBLE, StateEnum.RECOVERED, StateEnum.CUMULI, StateEnum.FATALITIES]:
-        plt.plot(sres[:, t.value], label=f"{t} (model)")
-
-    plt.title('States')
-    plt.xlabel('Days')
-    plt.ylabel('Individuals')
-    plt.legend()
-    plt.savefig('projection_global.pdf')
-    plt.savefig(f'projection_global_{days}_days.pdf')
-    plt.show()
+    #
+    #
+    # # NB_BINS = NB_EXPERIMENTS//20
+    #
+    # # for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED),
+    # #                    (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL)]:
+    #
+    # #     likelihood = 1
+    # #     log_likelihood = 0
+    # #     for day_ndx in range(days):
+    # #         d = all_exp[:, day_ndx, state.value]
+    # #         histo = np.histogram(d,bins=NB_BINS)
+    #
+    # #         # From histogram counts to probabilities
+    # #         proba = histo[0] * (1/np.sum(histo[0]))
+    #
+    # #         # In which bin fits the observation ?
+    # #         observation = rows[day_ndx, obs.value]
+    # #         tbin = np.digitize(observation, histo[1]) - 1
+    #
+    # #         if tbin < 0:
+    # #             tbin = 0
+    # #         elif tbin >= NB_BINS:
+    # #             tbin = NB_BINS - 1
+    #
+    #
+    # #         prob = proba[tbin]
+    #
+    # #         if True or prob == 0:
+    # #             # print(histo)
+    # #             # print(observation)
+    #
+    # #             # x = np.arange(len(proba))
+    # #             # idx = np.nonzero(proba)
+    # #             # interp = interp1d(x[idx], proba[idx])
+    # #             # print(interp(tbin))
+    #
+    # #             model = KernelDensity(bandwidth=max(1, (np.amax(d) / 10)), kernel='gaussian')
+    # #             model.fit(d.reshape(-1, 1))
+    #
+    #
+    # #             ls = np.linspace(observation-0.5,observation+0.5,2)[:,np.newaxis]
+    # #             prob = np.sum( np.exp( model.score_samples(ls))) / 2
+    #
+    # #             prob2 = model.score_samples([[observation]])
+    #
+    #
+    #
+    # #             # # Debug
+    # #             # print(f"obs:{observation} prob:{prob} prob2:{prob2}")
+    # #             # plt.figure()
+    #
+    # #             # density, bins = np.histogram(d, bins=NB_BINS, density=True)
+    # #             # unity_density = density / density.sum()
+    # #             # widths = bins[:-1] - bins[1:]
+    # #             # #plt.bar(bins[1:], unity_density, width=widths)
+    #
+    # #             # plt.hist(d,bins=NB_BINS,density=True)
+    #
+    # #             # log_dens = model.score_samples(histo[1].reshape( -1, 1))
+    # #             # plt.plot(histo[1], np.exp(log_dens), c='red')
+    # #             # plt.title(f"Day:{day_ndx}")
+    # #             # plt.show()
+    #
+    # #         likelihood *= prob
+    # #         log_likelihood += prob2
+    #
+    # #     print(f"likelihood {state}: {likelihood}, log_likelihood:{log_likelihood}")
+    #
+    # # exit()
+    #
+    # # for sres in experiments:
+    # #     for t in [StateEnum.RSURVIVOR]: #, StateEnum.HOSPITALIZED, StateEnum.CRITICAL, StateEnum.FATALITIES]:
+    # #         plt.plot(sres[:, t.value], c=COLORS_DICT[t], alpha=0.05, linewidth=0.4)
+    #
+    #
+    # sres = ms.predict(250)
+    #
+    # plt.figure()
+    # t = StateEnum.DHDT
+    # plt.plot(sres[:, t.value], c=COLORS_DICT[t], label=f"{t} (model)")
+    # u = ObsEnum.DHDT
+    # plt.plot(rows[:, u.value], "--", c=COLORS_DICT[u], label=f"{u} (real)")
+    # plt.savefig('dhdt.pdf')
+    #
+    # plt.figure()
+    # t = StateEnum.DFDT
+    # plt.plot(sres[:, t.value], c=COLORS_DICT[t], label=f"{t} (model)")
+    # u = ObsEnum.DFDT
+    # plt.plot(rows[:, u.value], "--", c=COLORS_DICT[u], label=f"{u} (real)")
+    # plt.savefig('dftf.pdf')
+    #
+    # exit()
+    #
+    # # for t in [, StateEnum.DFDT]:
+    #
+    # # for u in [ObsEnum.NUM_HOSPITALIZED, ObsEnum.NUM_CRITICAL,ObsEnum.NUM_FATALITIES]:
+    # #     plt.plot(rows[:, u.value], "--", c=COLORS_DICT[u], label=f"{u} (real)")
+    #
+    #
+    # plt.title('Curve Fitting')
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # prediction_days = 10 # prediction at prediction_days
+    # plt.xlim(0, days + prediction_days)
+    # plt.ylim(0, 1000)
+    # plt.legend()
+    # plt.savefig('data_fit.pdf')
+    # plt.savefig(f'data_fit_{days}_days.pdf')
+    # plt.show()
+    #
+    # plt.figure()
+    # jet = plt.get_cmap('jet')
+    # days_max = min(200, PREDICTED_DAYS)
+    # cNorm  = colors.Normalize(vmin=20, vmax=days_max)
+    # scalarMap = cm.ScalarMappable(norm=cNorm, cmap=jet)
+    # for day in range(60,days_max):
+    #     d = [experiments[exp_i][day, StateEnum.HOSPITALIZED.value] for exp_i in range(NB_EXPERIMENTS)]
+    #     hd = np.histogram(d,bins=50)[0]
+    #     plt.plot(hd, c=scalarMap.to_rgba(day), alpha=0.2)
+    # plt.title("Normalized histograms of 1000/day hospitalized values (color = day)")
+    # plt.xticks([])
+    # plt.colorbar(scalarMap)
+    #
+    # plt.figure()
+    # for t in [StateEnum.EXPOSED, StateEnum.ASYMPTOMATIQUE, StateEnum.SYMPTOMATIQUE ,StateEnum.HOSPITALIZED, StateEnum.CRITICAL, StateEnum.FATALITIES]:
+    #     plt.plot(sres[:, t.value], label=f"{t} (model)")
+    #
+    # plt.title('Exposed - Infectious - Hospitalized - Critical')
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # plt.legend()
+    # plt.savefig('projection_zoom.pdf')
+    # plt.savefig(f'projection_zoom_{days}_days.pdf')
+    # plt.show()
+    #
+    # plt.figure()
+    # for t in [StateEnum.SUCEPTIBLE, StateEnum.RECOVERED, StateEnum.CUMULI, StateEnum.FATALITIES]:
+    #     plt.plot(sres[:, t.value], label=f"{t} (model)")
+    #
+    # plt.title('States')
+    # plt.xlabel('Days')
+    # plt.ylabel('Individuals')
+    # plt.legend()
+    # plt.savefig('projection_global.pdf')
+    # plt.savefig(f'projection_global_{days}_days.pdf')
+    # plt.show()
