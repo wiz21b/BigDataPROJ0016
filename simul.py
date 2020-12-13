@@ -394,7 +394,7 @@ def simulation_model(persons,beta):
     # A_plus_SP = cnt_infected
     S = sum(1 for _ in filter(lambda p: p.susceptible, persons))
     print(S)
-    quota_to_infect_A = floor(beta*S/N *(cnt_infected_A)) # ici on est en full deterministique
+    quota_to_infect_A = round(beta*S/N *(cnt_infected_A)) # ici on est en full deterministique
 
     print(f" A people will infect {quota_to_infect_A} persons")
     actually_infected = 0
@@ -458,7 +458,7 @@ def simulation_model(persons,beta):
 
     infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
     targets_SP = InfectablePool(infected_people_SP)
-    quota_to_infect_SP = floor(beta*S/N *(cnt_infected_SP)) # ici on est en full deterministique
+    quota_to_infect_SP = round(beta*S/N *(cnt_infected_SP)) # ici on est en full deterministique
     print(f"SP people will infect {quota_to_infect_SP} persons")
 
     # on infecte les perosnnes infectée par SP
@@ -492,9 +492,21 @@ def simulation_model(persons,beta):
                     targets_SP.infect_one_in(Places.School)
                     actually_infected += 1
             else : # la personne vagabonde... donc potentiellement infecte tout le monde? ou seuls les susceptible en dehors du  boulot et de l'école ?
-                pass
-                # targets_SP.infect_one_in(Places.Workplace)
-                # actually_infected += 1
+                # a voir entre communauté et chez elle
+                if ( np.random.binomial(1,0.5)) and targets_A.has_targets_in(Places.HouseHold):
+                    if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
+                        targets_A.infect_one_in(Places.HouseHold)
+                        actually_infected += 1
+                    elif np.random.binomial(1,(1-mesure_house_A)*(1-masque)): # soit il respecte les règles et il infecte une personne a la maison. 1-mesure % de chance
+                        targets_A.infect_one_in(Places.HouseHold)
+                        actually_infected += 1
+                elif targets_A.has_targets_in(Places.Community):
+                    if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte d'office
+                        targets_A.infect_one_in(Places.Community)
+                        actually_infected += 1
+                    elif np.random.binomial(1,(1-mesure_community_A)*(1-masque)): # soit il respecte les règles et il infecte une personne a la communauté. 1-mesure % de chance
+                        targets_A.infect_one_in(Places.Community)
+                        actually_infected += 1
 
         elif targets_SP.has_targets_in(Places.Community):
             if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte d'office
@@ -509,20 +521,24 @@ def simulation_model(persons,beta):
     return actually_infected
 
 def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
-    
+
     infected_people_E = [p for p in filter(lambda p: p.infected_E, persons)]
+    print("E : " + str(len(infected_people_E)) + "--------------" + str(rhoE))
     for person in random.sample(infected_people_E, rhoE):
         person.state = "A"
 
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    print("A : " + str(len(infected_people_A)) + "--------------" + str(sigmaA))
     for person in random.sample(infected_people_A, sigmaA):
         person.state = "SP"
 
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    print("A : " + str(len(infected_people_A)) + "--------------" + str(gamma4A))
     for person in random.sample(infected_people_A, gamma4A):
         person.state = "HCRF"
 
     infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
+    print("A : " + str(len(infected_people_SP)) + "--------------" + str(gamma1SP) + " " + str(tauSP))
     for person in random.sample(infected_people_SP, gamma1SP + tauSP):
         person.state = "HCRF"
 

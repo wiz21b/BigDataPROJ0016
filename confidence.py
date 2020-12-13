@@ -1,10 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
-
+import random
 from utils import ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, Model, residuals_error, load_data, residual_sum_of_squares, log_residual_sum_of_squares, COLORS_DICT
 
 from simul import simulation_model, model_update,partition_persons,persons
-
+random.seed(24)
+np.random.seed(24)
 def population_leave(param, population):
     # param : the proportion of population that should
     # leave on average
@@ -94,7 +95,7 @@ class SarahStat(Model):
         data = []
 
         for d in range(days):
-            print("Days = "+ str(days) + "----------------------------------------")
+            print("Days = "+ str(d) + "----------------------------------------")
             ys = [S, E, A, SP, H, C, F, R]
 
             if stochastic:
@@ -102,11 +103,11 @@ class SarahStat(Model):
                     dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
                     if ( d == self._nb_observations+2 ):
                             repartition = {
-                                "S" : S,
-                                "E" : E,
-                                "A" : A,
-                                "SP" : SP,
-                                "HCRF" : H+C+R+F
+                                "S" : S+dSdt,
+                                "E" : E+dEdt,
+                                "A" : A+dAdt,
+                                "SP" : SP+dSPdt,
+                                "HCRF" : 1000324 - S+dSdt - E+dEdt - A+dAdt - SP+dSPdt
                             }
                             partition_persons(persons, repartition)                
                 else:
@@ -170,18 +171,18 @@ class SarahStat(Model):
         # thetaC = theta * C
         # gamma3C = gamma3 * C
 
-        betaS = population_leave(beta, S * (A+SP) / N)
-        rhoE = population_leave(rho, E)
-        sigmaA = population_leave(sigma, A)
-        gamma4A = population_leave(gamma4, A)
-        tauSP = population_leave(tau, SP)
-        gamma1SP = population_leave(gamma1, SP)
-        deltaH = population_leave(delta, H)
-        gamma2H = population_leave(gamma2, H)
-        thetaC = population_leave(theta, C)
-        gamma3C = population_leave(gamma3, C)
-        muSP = population_leave(mu,sigmaA)# pas sur qu'il faut pas la moyenne 
-        etaSP = population_leave(eta,muSP)
+        betaS = round(population_leave(beta, S * (A+SP) / N))
+        rhoE = round(population_leave(rho, E))
+        sigmaA = round(population_leave(sigma, A))
+        gamma4A = round(population_leave(gamma4, A))
+        tauSP = round(population_leave(tau, SP))
+        gamma1SP = round(population_leave(gamma1, SP))
+        deltaH = round(population_leave(delta, H))
+        gamma2H = round(population_leave(gamma2, H))
+        thetaC = round(population_leave(theta, C))
+        gamma3C = round(population_leave(gamma3, C))
+        muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne 
+        etaSP = round(population_leave(eta,muSP))
 
         dSdt = -betaS
         dEdt =  betaS - rhoE
@@ -221,20 +222,22 @@ class SarahStat(Model):
 
         #betaS = population_leave((1- 0.2)* beta* S/N,  0.8* (A+SP) )
         #betaS2 = population_leave(beta*S/N,  0.1* (A+SP) )
-        rhoE = population_leave(rho, E)
-        sigmaA = population_leave(sigma, A)
-        gamma4A = population_leave(gamma4, A)
-        tauSP = population_leave(tau, SP)
-        gamma1SP = population_leave(gamma1, SP)
-        deltaH = population_leave(delta, H)
-        gamma2H = population_leave(gamma2, H)
-        thetaC = population_leave(theta, C)
-        gamma3C = population_leave(gamma3, C)
-        muSP = population_leave(mu,sigmaA)# pas sur qu'il faut pas la moyenne 
-        etaSP = population_leave(eta,muSP)
+        print("E = ------------------------------" + str(E))
+        rhoE = round(population_leave(rho, E))
+        sigmaA = round(population_leave(sigma, A))
+        gamma4A = round(population_leave(gamma4, A))
+        tauSP = round(population_leave(tau, SP))
+        gamma1SP = round(population_leave(gamma1, SP))
+        deltaH = round(population_leave(delta, H))
+        gamma2H = round(population_leave(gamma2, H))
+        thetaC = round(population_leave(theta, C))
+        gamma3C = round(population_leave(gamma3, C))
+        muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne 
+        etaSP = round(population_leave(eta,muSP))
 
         betaS = simulation_model(persons,beta)
-
+        
+        print(betaS)
         dSdt = -betaS
         dEdt =  betaS - rhoE
         #dAdt = rho * E - sigma*E - gamma4 * A
