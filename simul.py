@@ -201,16 +201,10 @@ all_groups.status()
 for person in random.sample(persons, 1234):
     person.state = "E"
 
-# Infected people
-cnt_infected = sum(1 for _ in filter(lambda p: p.infected, persons))
-print(f"{cnt_infected} people infected at beginning of simulation")
-
 
 # --------------------------------------------------------------------
 # Dispatching the quota
 
-# First, figure out the infected people, they can transmit the disease
-infected_people = [p for p in filter(lambda p: p.infected, persons)]
 
 # Second, figure out the people they can infect
 # Edge case : if 2 infected are in the same company, they
@@ -219,15 +213,23 @@ infected_people = [p for p in filter(lambda p: p.infected, persons)]
 
 class InfectablePool:
     def __init__(self, infected_people):
-        self._targets = {Places.Workplace: set(),
-                         Places.HouseHold: set(),
-                         Places.School: set(),
-                         Places.Community: set()}
+        self._targets = {Places.Workplace: [],
+                         Places.HouseHold: [],
+                         Places.School: [],
+                         Places.Community: []}
+
+        # Si A & B peuvent infecter C sur le lieu de travail
+        # Alors C n'apparait qu'une seule fois dans WorkPlace
+
+        # Avec array:
+        # Si A & B peuvent infecter C sur le lieu de travail
+        # alors C apparait DEUX fois dans le groupe workplace
 
         n = 0
         for infected in infected_people:
             for t, p in infected.infectables().items():
-                self._targets[t].update(p)
+                # t is the group, p is the person
+                self._targets[t].extend(p)
 
             n += 1
             if n % 1000 == 0:
@@ -237,17 +239,22 @@ class InfectablePool:
         for k, v in self._targets.items():
             print(f"   {k} : {len(v)} targets")
 
-    def has_targets_in(self, group):
+    def has_targets_in(self, group: Places):
         return len(self._targets[group]) > 0
 
-    def infect_one_in(self, group):
+    def infect_one_in(self, group: Places):
+        """ Infect one person in the given group.
+        """
 
-        person = random.choice(list(self._targets[group]))
+        person = random.choice(self._targets[group])
 
+
+        # Remove the person from all the groups
         done = False
         for infectables in self._targets.values():
             if person in infectables:
-                infectables.remove(person)
+                while person in infectables:
+                    infectables.remove(person)
                 done = True
 
         assert done, "You tried to infect someone who's not a target"
@@ -256,30 +263,54 @@ class InfectablePool:
 
 
 
+infected_people = [p for p in filter(lambda p: p.infected, persons)]
 targets = InfectablePool(infected_people)
 
 beta = 0.3
 N = 100324
-A_plus_SP = cnt_infected
-S = N - A_plus_SP
-mesure_house = 0.5
-
-quota_to_infect = round(beta*S/N *(A_plus_SP))
-
-print(f"Today we'll infect {quota_to_infect} persons")
-
-actually_infected = 0
-for nb_infected in range(quota_to_infect): # on prend directement le quota = nombre de personne à infecter ce jour.
-
-    infected_hour = random.randint(0,24) # donc on infectera la personne en fct de l'heure
-
-    # Make sure we can infect people in households before even trying.
-    if targets.has_targets_in(Places.HouseHold) \
-       and infected_hour < 13 \
-       and np.random.binomial(1,1-mesure_house): # il infecte une personne a la maison. 1-mesure % de chance
-
-        targets.infect_one_in(Places.HouseHold)
-        actually_infected += 1
+mesure_house = 0
+mesure_workplace = 0
+mesure_community = 0
 
 
-print(f"{actually_infected} were infected")
+
+for day in range(10):
+
+    # Infected people
+    cnt_infected = sum(1 for _ in filter(lambda p: p.infected, persons))
+    print(f"{cnt_infected} people infected at beginning of simulation")
+
+    A_plus_SP = cnt_infected
+    S = N - A_plus_SP
+    quota_to_infect = round(beta*S/N *(A_plus_SP))
+
+    print(f"On day {day} we'll infect {quota_to_infect} persons")
+
+    actually_infected = 0
+    for nb_infected in range(quota_to_infect): # on prend directement le quota = nombre de personne à infecter ce jour.
+
+        infected_hour = random.randint(0,24) # donc on infectera la personne en fct de l'heure
+
+        # Make sure we can infect people in households before even trying.
+        if infected_hour < 13 \
+           and targets.has_targets_in(Places.HouseHold) \
+           and np.random.binomial(1,1-mesure_house): # il infecte une personne a la maison. 1-mesure % de chance
+
+            targets.infect_one_in(Places.HouseHold)
+            actually_infected += 1
+
+        elif infected_hour < 21 \
+           and targets.has_targets_in(Places.Workplace) \
+           and np.random.binomial(1,1-mesure_workplace):
+
+            targets.infect_one_in(Places.Workplace)
+            actually_infected += 1
+
+        elif targets.has_targets_in(Places.Community) \
+           and np.random.binomial(1,1-mesure_community):
+
+            targets.infect_one_in(Places.Community)
+            actually_infected += 1
+
+
+    print(f"{actually_infected} were infected")
