@@ -96,7 +96,10 @@ class SarahStat(Model):
             ys = [S, E, A, SP, H, C, F, R]
 
             if stochastic:
-                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
+                if(d<= self._nb_observations+2):
+                    dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
+                else:
+                    dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic_measure(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
             else:
                 dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT = self._model(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
 
@@ -188,6 +191,55 @@ class SarahStat(Model):
 
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
+    def _model_stochastic_measure(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta):
+        S, E, A, SP, H, C, F, R = ys
+
+        N = self._N
+
+        # betaS = beta * S * (A+SP) / N
+        # rhoE = rho * E
+        # sigmaA = sigma * A
+        # gamma4A = gamma4 * A
+        # tauSP = tau * SP
+        # gamma1SP = gamma1 * SP
+        # deltaH = delta * H
+        # gamma2H = gamma2 * H
+        # thetaC = theta * C
+        # gamma3C = gamma3 * C
+
+        betaS = population_leave((1- 0.2)* beta* S/N,  0.8* (A+SP) )
+        betaS2 = population_leave(beta*S/N,  0.1* (A+SP) )
+        rhoE = population_leave(rho, E)
+        sigmaA = population_leave(sigma, A)
+        gamma4A = population_leave(gamma4, A)
+        tauSP = population_leave(tau, SP)
+        gamma1SP = population_leave(gamma1, SP)
+        deltaH = population_leave(delta, H)
+        gamma2H = population_leave(gamma2, H)
+        thetaC = population_leave(theta, C)
+        gamma3C = population_leave(gamma3, C)
+        muSP = population_leave(mu,sigmaA)# pas sur qu'il faut pas la moyenne 
+        etaSP = population_leave(eta,muSP)
+
+        dSdt = -betaS
+        dEdt =  betaS - rhoE
+        #dAdt = rho * E - sigma*E - gamma4 * A
+        dAdt = rhoE - sigmaA - gamma4A
+        #dSPdt = sigma * E - tau * SP - gamma1 * SP
+        dSPdt = sigmaA - tauSP - gamma1SP
+        dHdt = tauSP - deltaH - gamma2H
+        dCdt = deltaH - thetaC - gamma3C
+        dFdt = thetaC
+        dRdt = gamma1SP + gamma2H + gamma3C + gamma4A
+
+        dHIndt = tauSP
+        dFIndt = thetaC
+        dSPIndt = sigmaA
+        DTESTEDDT = muSP
+        DTESTEDPOSDT = etaSP
+
+        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
+
 
 if __name__ == "__main__":
     head, observations, rows = load_data()
@@ -209,7 +261,7 @@ if __name__ == "__main__":
     ms = SarahStat(rows, 1000000)
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
-    NB_EXPERIMENTS = 100
+    NB_EXPERIMENTS = 500
     PREDICTED_DAYS = 250
 
     print(f"Running {NB_EXPERIMENTS} experiments")
@@ -230,18 +282,18 @@ if __name__ == "__main__":
                        (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[0,5,50,95,100])
+            [np.percentile(experiments[:,day,state.value],[5,50,95])
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
 
         plt.figure()
-        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,4], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
-        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,1],percentiles[:,3], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
-        plt.plot(range(PREDICTED_DAYS), percentiles[:,2], color=color)
+        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
+        #plt.fill_between(range(PREDICTED_DAYS), percentiles[:,1],percentiles[:,3], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
+        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
-        plt.savefig("0image/"+str(state)+".pdf")
+        plt.savefig("img_final/mask2_"+str(state)+".pdf")
 
         plt.title(str(state))
     plt.show()
@@ -259,11 +311,11 @@ if __name__ == "__main__":
         color = COLORS_DICT[state]
 
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
-        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
+        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"{obs}")
 
-        plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state} (real)")
+        #plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state}")
         
     plt.legend()
     plt.title("preview")
-    plt.savefig("0image/allState.pdf")
+    plt.savefig("img_final/mask_allState.pdf")
     plt.show()
