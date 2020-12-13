@@ -1,11 +1,14 @@
+import random
 import matplotlib.pyplot as plt
 import numpy as np
 import random
 from utils import ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, Model, residuals_error, load_data, residual_sum_of_squares, log_residual_sum_of_squares, COLORS_DICT
 
-from simul import simulation_model, model_update,partition_persons,persons
+from simul import simulation_model, model_update,partition_persons,persons,InfectablePool
+
 random.seed(24)
 np.random.seed(24)
+
 def population_leave(param, population):
     # param : the proportion of population that should
     # leave on average
@@ -102,14 +105,16 @@ class SarahStat(Model):
                 if(d<= self._nb_observations+2):
                     dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
                     if ( d == self._nb_observations+2 ):
-                            repartition = {
-                                "S" : S+dSdt,
-                                "E" : E+dEdt,
-                                "A" : A+dAdt,
-                                "SP" : SP+dSPdt,
-                                "HCRF" : 1000324 - S+dSdt - E+dEdt - A+dAdt - SP+dSPdt
-                            }
-                            partition_persons(persons, repartition)                
+                        repartition = {
+                            "S" : S+dSdt,
+                            "E" : E+dEdt,
+                            "A" : A+dAdt,
+                            "SP" : SP+dSPdt,
+                            "HCRF" : 1000324 - S+dSdt - E+dEdt - A+dAdt - SP+dSPdt
+                        }
+                        partition_persons(persons, repartition)
+                        infected_people = [p for p in filter(lambda p: p.infected_A or p.infected_SP, persons)]
+                        self.infectedPool = InfectablePool(infected_people)
                 else:
                     dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic_measure(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
             else:
@@ -181,7 +186,7 @@ class SarahStat(Model):
         gamma2H = round(population_leave(gamma2, H))
         thetaC = round(population_leave(theta, C))
         gamma3C = round(population_leave(gamma3, C))
-        muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne 
+        muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne
         etaSP = round(population_leave(eta,muSP))
 
         dSdt = -betaS
@@ -222,6 +227,7 @@ class SarahStat(Model):
 
         #betaS = population_leave((1- 0.2)* beta* S/N,  0.8* (A+SP) )
         #betaS2 = population_leave(beta*S/N,  0.1* (A+SP) )
+
         print("E = ------------------------------" + str(E))
         rhoE = round(population_leave(rho, E))
         sigmaA = round(population_leave(sigma, A))
@@ -232,11 +238,11 @@ class SarahStat(Model):
         gamma2H = round(population_leave(gamma2, H))
         thetaC = round(population_leave(theta, C))
         gamma3C = round(population_leave(gamma3, C))
-        muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne 
+        muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne
         etaSP = round(population_leave(eta,muSP))
 
-        betaS = simulation_model(persons,beta)
-        
+        betaS = simulation_model(persons,beta,self.infectedPool)
+
         print(betaS)
         dSdt = -betaS
         dEdt =  betaS - rhoE
@@ -333,7 +339,7 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"{obs}")
 
         #plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state}")
-        
+
     plt.legend()
     plt.title("preview")
     plt.savefig("img_final/mask_allState.pdf")

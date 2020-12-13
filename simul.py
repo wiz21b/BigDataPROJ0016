@@ -79,11 +79,6 @@ class Person:
         self.state = "S"
 
     @property
-    def infected(self):
-        # infectious
-        return self.state in ("A", "SP")
-
-    @property
     def susceptible(self):
         return self.state == "S"
 
@@ -140,7 +135,7 @@ class GroupBase:
         # infected in this group
         # May be an empty list
 
-        return [p for p in self._persons if not p.infected]
+        return [p for p in self._persons if p.susceptible]
 
 
 class HouseHold(GroupBase):
@@ -347,7 +342,7 @@ class InfectablePool:
             # print(type(infectables))
 
             if person in infectables:
-                infectables.decount(person)
+                infectables.remove(person)
                 done = True
 
         assert done, "You tried to infect someone who's not a target"
@@ -355,7 +350,9 @@ class InfectablePool:
         person.state = "E"
 
 
-def simulation_model(persons,beta):
+
+
+def simulation_model(persons,beta,infectedPool):
 
     N = 1000324
 
@@ -376,14 +373,15 @@ def simulation_model(persons,beta):
     # X = age_apply_social_distancing
     # Y = DSPDT -> 0
     # Y = 00000000000000000000000
-    # Y+1 = 11111111111111111 
+    # Y+1 = 11111111111111111
     # Y+1 = 000000000000001111111111111
     # Y+2 = 111111111111112222222222222
     # Y+2 = 00000000000000000111111112222222222 gamma+tau
     # Y+3 = 11111111111111111222222223333333333
 
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
-    targets_A = InfectablePool(infected_people_A)
+    #targets_A = InfectablePool(infected_people_A)
+    targets_A = infectedPool
 
     # Infected people
     cnt_infected_A = sum(1 for _ in filter(lambda p: p.infected_A, persons)) # diviser en A et SP
@@ -457,8 +455,10 @@ def simulation_model(persons,beta):
                 actually_infected += 1
 
     infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
-    targets_SP = InfectablePool(infected_people_SP)
+    #targets_SP = InfectablePool(infected_people_SP)
+    targets_SP = infectedPool
     quota_to_infect_SP = round(beta*S/N *(cnt_infected_SP)) # ici on est en full deterministique
+
     print(f"SP people will infect {quota_to_infect_SP} persons")
 
     # on infecte les perosnnes infectée par SP
@@ -467,7 +467,7 @@ def simulation_model(persons,beta):
         # Make sure we can infect people in households before even trying.
         if infected_hour < 13 \
            and targets_SP.has_targets_in(Places.HouseHold):
-           
+
             if (np.random.binomial(1,0.1)):# soit il respecte pas les règles et il infecte
                 targets_SP.infect_one_in(Places.HouseHold)
                 actually_infected += 1
@@ -524,6 +524,9 @@ def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
 
     infected_people_E = [p for p in filter(lambda p: p.infected_E, persons)]
     print("E : " + str(len(infected_people_E)) + "--------------" + str(rhoE))
+    if len(infected_people_E) == 0 or rhoE > len(infected_people_E):
+        print(f"infected_people_E:{len(infected_people_E)} rhoE:{rhoE}")
+
     for person in random.sample(infected_people_E, rhoE):
         person.state = "A"
 
@@ -543,7 +546,7 @@ def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
         person.state = "HCRF"
 
 
-    
+
     return
 
 if __name__ == "__main__":
