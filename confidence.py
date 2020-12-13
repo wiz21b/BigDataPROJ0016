@@ -30,7 +30,7 @@ def population_leave(param, population):
 class SarahStat(Model):
     def _params_array_to_dict(self, params):
         return dict(
-            zip(['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta'],
+            zip(['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta','mu','eta'],
                 params))
 
     def __init__(self, observations, N):
@@ -48,9 +48,9 @@ class SarahStat(Model):
         self._evaluation = 0
         self._iterations = 0
 
-        E0 = 15
-        A0 = 10
-        SP0 = 5
+        E0 = 15 * 2
+        A0 = 10 * 2
+        SP0 = 5 * 2
         H0 = self._observations[0][ObsEnum.NUM_HOSPITALIZED.value]
         C0 = self._observations[0][ObsEnum.NUM_CRITICAL.value]
         R0 = 0
@@ -84,6 +84,8 @@ class SarahStat(Model):
         sigma = params['sigma']
         rho = params['rho']
         theta = params['theta']
+        mu = params['mu']
+        eta = params['eta']
 
         S, E, A, SP, H, C, F, R, infected_per_day, R_out_HC, cumulI = initial_conditions
         cumulH = 0
@@ -94,9 +96,9 @@ class SarahStat(Model):
             ys = [S, E, A, SP, H, C, F, R]
 
             if stochastic:
-                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHOutdt = self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta)
+                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
             else:
-                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHOutdt = self._model(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta)
+                dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT = self._model(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
 
             S += dSdt
             E += dEdt
@@ -107,22 +109,14 @@ class SarahStat(Model):
             F += dFdt
             R += dRdt
 
-            cumulH += dHOutdt
-            R_survivor = cumulH - H - C - F
-
-            data.append([S, E, A, SP, H, C, F, R,
-                         infected_per_day, R_survivor, cumulI,
-                         cumulH, R_out_HC])
+            data.append([S, E, A, SP, H, C, F, R,dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT])
 
         return np.array(data)
 
-
-    def _model(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta):
+    def _model(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta):
         S, E, A, SP, H, C, F, R = ys
 
         N = self._N
-
-        # actually_infected=modelsimul(rho,....)
 
         dSdt = -beta * S * (A+SP) / N
         dEdt = beta * S * (A+SP) / N - rho * E
@@ -135,13 +129,18 @@ class SarahStat(Model):
         dFdt = theta * C
         dRdt = gamma1 * SP + gamma2 * H + gamma3 * C + gamma4 * A
 
-        dHOutdt = tau*SP
+        dHIndt = tau*SP
+        dFIndt = theta *C
+        dSPIndt = sigma * A
+        DTESTEDDT = dSPIndt*mu
+        DTESTEDPOSDT = DTESTEDDT * eta # eta = sensibilite
 
-        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHOutdt]
+
+        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
 
 
-    def _model_stochastic(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta):
+    def _model_stochastic(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta):
         S, E, A, SP, H, C, F, R = ys
 
         N = self._N
@@ -167,6 +166,8 @@ class SarahStat(Model):
         gamma2H = population_leave(gamma2, H)
         thetaC = population_leave(theta, C)
         gamma3C = population_leave(gamma3, C)
+        muSP = population_leave(mu,sigmaA)# pas sur qu'il faut pas la moyenne 
+        etaSP = population_leave(eta,muSP)
 
         dSdt = -betaS
         dEdt =  betaS - rhoE
@@ -179,21 +180,37 @@ class SarahStat(Model):
         dFdt = thetaC
         dRdt = gamma1SP + gamma2H + gamma3C + gamma4A
 
-        dHOutdt = tau*SP
+        dHIndt = tauSP
+        dFIndt = thetaC
+        dSPIndt = sigmaA
+        DTESTEDDT = muSP
+        DTESTEDPOSDT = etaSP
 
-        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHOutdt]
+        return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
 
 if __name__ == "__main__":
     head, observations, rows = load_data()
     rows = np.array(rows)
     days = len(observations)
+    gamma1 = 0.23
+    gamma2 = 1/13
+    gamma3 = 1/17
+    gamma4 = 0.12
+    beta = 0.32
+    tau = 0.01
+    delta = 0.025
+    sigma = 0.6
+    rho = 0.89
+    theta = 0.04
+    mu = 0.67
+    eta = 0.8
 
     ms = SarahStat(rows, 1000000)
-    ms._fit_params = ms._params_array_to_dict([0.06902555, 0.63201217, 0.8476672,  0.40937882, 0.5985962,  0.73778851, 0.13290143, 0.08208902, 0.88753062, 0.10339359])
+    ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
     NB_EXPERIMENTS = 100
-    PREDICTED_DAYS = 80
+    PREDICTED_DAYS = 250
 
     print(f"Running {NB_EXPERIMENTS} experiments")
     experiments = [] # dims : [experiment #][day][value]
@@ -204,11 +221,13 @@ if __name__ == "__main__":
     print("... done running experiments")
 
     experiments = np.stack(experiments)
-
     for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED),
+                        (StateEnum.DHDT,ObsEnum.DHDT),
+                        (StateEnum.DFDT,ObsEnum.DFDT),
+                        (StateEnum.DTESTEDDT,ObsEnum.NUM_TESTED),
+                        (StateEnum.DTESTEDPOSDT,ObsEnum.NUM_POSITIVE),
                        (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL),
-                       (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES),
-                       (StateEnum.RSURVIVOR, ObsEnum.RSURVIVOR)]:
+                       (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
 
         percentiles = np.stack(
             [np.percentile(experiments[:,day,state.value],[0,5,50,95,100])
@@ -222,7 +241,29 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,2], color=color)
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
-
+        plt.savefig("0image/"+str(state)+".pdf")
 
         plt.title(str(state))
+    plt.show()
+
+    PREDICTED_DAYS = 250
+
+    plt.figure()
+    for state in [(StateEnum.HOSPITALIZED),(StateEnum.CRITICAL),StateEnum.EXPOSED,StateEnum.RECOVERED,StateEnum.FATALITIES,
+                    StateEnum.ASYMPTOMATIQUE,StateEnum.SYMPTOMATIQUE,StateEnum.SUSCEPTIBLE]:
+
+        percentiles = np.stack(
+            [np.percentile(experiments[:,day,state.value],[5,50,95])
+             for day in range(PREDICTED_DAYS)])
+
+        color = COLORS_DICT[state]
+
+        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
+        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
+
+        plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state} (real)")
+        
+    plt.legend()
+    plt.title("preview")
+    plt.savefig("0image/allState.pdf")
     plt.show()
