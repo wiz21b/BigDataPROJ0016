@@ -199,7 +199,7 @@ all_groups.status()
 # --------------------------------------------------------------------
 # Infecting people
 
-for person in random.sample(persons, 1234):
+for person in random.sample(persons, 12340):
     person.state = "E"
 
 
@@ -221,11 +221,13 @@ class InfectablePool:
 
         n = 0
         for infected in infected_people:
-            for t, infectables in infected.infectables().items():
+            for grp, infectables in infected.infectables().items():
                 # t is the group, p is the person
                 # We count the person once more
+
+                tgts = self._targets[grp]
                 for p in infectables:
-                    self._targets[t][p] += 1
+                    tgts[p] += 1
 
             n += 1
             if n % 1000 == 0:
@@ -291,7 +293,7 @@ mesure_community = 0
 
 
 
-for day in range(5):
+for day in range(10):
 
     # Infected people
     cnt_infected = sum(1 for _ in filter(lambda p: p.infected, persons))
