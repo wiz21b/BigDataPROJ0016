@@ -109,12 +109,12 @@ class SarahStat(Model):
                             "S" : S+dSdt,
                             "E" : E+dEdt,
                             "A" : A+dAdt,
-                            "SP" : SP+dSPdt
+                            "SP" : SP+dSPdt,
                             "HCRF" : H+ dHdt + C + dCdt + F + dFdt + R + dRdt
                         }
                         partition_persons(persons, repartition)
-                        infected_people = [p for p in filter(lambda p: p.infected_A or p.infected_SP, persons)]
-                        self.infectedPool = InfectablePool(infected_people)
+                        #infected_people = [p for p in filter(lambda p: p.infected_A or p.infected_SP, persons)]
+                        #self.infectedPool = InfectablePool(infected_people)
                 else:
                     dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic_measure(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
             else:
@@ -241,7 +241,7 @@ class SarahStat(Model):
         muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne
         etaSP = round(population_leave(eta,muSP))
 
-        betaS = simulation_model(persons,beta,self.infectedPool)
+        betaS = simulation_model(persons,beta)#,self.infectedPool)
 
         print(betaS)
         dSdt = -betaS

@@ -352,7 +352,7 @@ class InfectablePool:
 
 
 
-def simulation_model(persons,beta,infectedPool):
+def simulation_model(persons,beta):#,infectedPool):
 
     N = 1000324
 
@@ -380,8 +380,8 @@ def simulation_model(persons,beta,infectedPool):
     # Y+3 = 11111111111111111222222223333333333
 
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
-    #targets_A = InfectablePool(infected_people_A)
-    targets_A = infectedPool
+    targets_A = InfectablePool(infected_people_A)
+    #targets_A = infectedPool
 
     # Infected people
     cnt_infected_A = sum(1 for _ in filter(lambda p: p.infected_A, persons)) # diviser en A et SP
@@ -455,8 +455,8 @@ def simulation_model(persons,beta,infectedPool):
                 actually_infected += 1
 
     infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
-    #targets_SP = InfectablePool(infected_people_SP)
-    targets_SP = infectedPool
+    targets_SP = InfectablePool(infected_people_SP)
+    #targets_SP = infectedPool
     quota_to_infect_SP = round(beta*S/N *(cnt_infected_SP)) # ici on est en full deterministique
 
     print(f"SP people will infect {quota_to_infect_SP} persons")
