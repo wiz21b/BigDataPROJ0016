@@ -1,17 +1,30 @@
+import distutils.util
+import argparse
+
 from datetime import datetime
 from collections import defaultdict
 from enum import Enum
 import random
-import numpy as np
 from math import floor
+import numpy as np
 
 from load_stats import STATS_HOUSEHOLDS, STATS_WORKPLACES, \
     STATS_SCHOOLS, STATS_COMMUNITIES_POP
 
-IS_QUARANTINE = True
-IS_CASE_ISOLATION = False
-ISOLATION_TIME = 7
+args_parser = argparse.ArgumentParser()
+args_parser.add_argument("--quarantine", "-q", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a quarantine. Default is {IS_QUARANTINE}.", default=True)
+args_parser.add_argument("--case-isolation", "-i", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a case isolation policy. Default is {IS_CASE_ISOLATION}.", default=False)
+args_parser.add_argument("--isolation-time", "-t", type=int, help=f"Duration of isolation or quarantine, in days. Default {ISOLATION_TIME}.", default=7)
+args_parser.add_argument("--simulations", "-s", type=int, help=f"Number of simulations to run. Default {NB_SIMULATION}.", default=20)
 
+parsed_args = args_parser.parse_args()
+
+IS_QUARANTINE = parsed_args.quarantine
+IS_CASE_ISOLATION = parsed_args.case_isolation
+ISOLATION_TIME = parsed_args.isolation_time
+NB_SIMULATION = parsed_args.simulations
+
+print(f"Parameters : quarantine={parsed_args.quarantine}, case_isolation={IS_CASE_ISOLATION}, isolation_time={ISOLATION_TIME}")
 
 class PeopleCounter:
     def __init__(self, people_dict):
