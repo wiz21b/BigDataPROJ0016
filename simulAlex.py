@@ -8,6 +8,11 @@ from math import floor
 from load_stats import STATS_HOUSEHOLDS, STATS_WORKPLACES, \
     STATS_SCHOOLS, STATS_COMMUNITIES_POP
 
+IS_QUARANTINE = True
+IS_CASE_ISOLATION = False
+ISOLATION_TIME = 7
+
+
 class PeopleCounter:
     def __init__(self, people_dict):
         self._d = dict()
@@ -21,6 +26,9 @@ class PeopleCounter:
             zip(self._people, range(len(self._people))))
 
     def pick(self):
+        if len(self._people) == 0:
+            return None
+
         ndx = random.randint(0, len(self._people)-1)
 
         while self._people[ndx] is None:
@@ -77,6 +85,7 @@ class Person:
         self.school = None
         self.community = None
         self.state = "S"
+        self.isolation_time = 0
 
     @property
     def susceptible(self):
@@ -122,6 +131,14 @@ class Person:
 
         return t
 
+    def set_isolation_time(self):
+        if IS_QUARANTINE or IS_CASE_ISOLATION:
+            if self.infected_SP:
+                self.isolation_time = ISOLATION_TIME
+                if IS_QUARANTINE:
+                    for p in self.household.isolable():
+                        p.isolation_time = ISOLATION_TIME
+
 
 class GroupBase:
     def __init__(self):
@@ -136,6 +153,12 @@ class GroupBase:
         # May be an empty list
 
         return [p for p in self._persons if p.susceptible]
+
+    def isolable(self):
+    # Return the list of people that are infectious
+    # May be an empty list
+
+        return [p for p in self._persons if p.infected_A or p.infected_SP or p.infected_E or p.susceptible]
 
 
 class HouseHold(GroupBase):
@@ -267,7 +290,7 @@ all_groups.status()
 # --------------------------------------------------------------------
 # Dispatching the quota
 
-def partition_persons( persons, repartition):
+def partition_persons(persons, repartition):
     ndx = 0
 
     shuf_ndx = [i for i in range(len(persons))]
@@ -276,10 +299,12 @@ def partition_persons( persons, repartition):
     for status, cnt in repartition.items():
         for i in range(cnt):
             persons[shuf_ndx[ndx]].state = status
+            persons[shuf_ndx[ndx]].set_isolation_time()
             ndx += 1
 
     print("Partitioned {}/{} persons".format(
         sum(repartition.values()), ndx))
+
 
 
 
@@ -328,9 +353,9 @@ class InfectablePool:
     def infect_one_in(self, group: Places):
         """ Infect one person in the given group.
         """
-
         person = self._targets[group].pick()
-
+        if person == None:
+            return
         # print(f"Removing someone {person} from {group}")
         # assert isinstance(person, Person)
         # assert person in self._targets[group]
@@ -359,15 +384,34 @@ def simulation_model(persons,beta):#,infectedPool):
     work_perc = 495488.5/1000324
     school_perc = 162647.5/1000324
 
+    # mesure_house_A = 0
+    # mesure_work_A = 0.75
+    # mesure_community_A = 0.75
+    # mesure_school_A = 1
+    #
+    # mesure_house_SP = 0
+    # mesure_work_SP = 0.75
+    # mesure_community_SP = 0.75
+    # mesure_school_SP = 1
+
+    # ------- CASE ISOLATION [
     mesure_house_A = 0
-    mesure_work_A = 0.75
-    mesure_community_A = 0.75
-    mesure_school_A = 1
+    mesure_work_A = 0
+    mesure_community_A = 0
+    mesure_school_A = 0
 
     mesure_house_SP = 0
-    mesure_work_SP = 0.75
-    mesure_community_SP = 0.75
-    mesure_school_SP = 1
+    mesure_work_SP = 0
+    mesure_community_SP = 0
+    mesure_school_SP = 0
+
+    mesure_house_isolated = 0.25
+    mesure_work_isolated = 1
+    mesure_community_isolated = 0.90
+    mesure_school_isolated = 1
+    # ------- CASE ISOLATION ]
+
+
 
     masque = 0.2
     # X = age_apply_social_distancing
@@ -378,16 +422,24 @@ def simulation_model(persons,beta):#,infectedPool):
     # Y+2 = 111111111111112222222222222
     # Y+2 = 00000000000000000111111112222222222 gamma+tau
     # Y+3 = 11111111111111111222222223333333333
+    for p in persons:
+        if p.isolation_time > 0:
+            p.isolation_time -= 1
 
-    infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
+    infected_people_A = [p for p in filter(lambda p: p.infected_A, persons) if p.isolation_time == 0]
     targets_A = InfectablePool(infected_people_A)
     #targets_A = infectedPool
 
     # Infected people
-    cnt_infected_A = sum(1 for _ in filter(lambda p: p.infected_A, persons)) # diviser en A et SP
+    cnt_infected_A = sum(1 for p in filter(lambda p: p.infected_A, persons) if p.isolation_time == 0) # diviser en A et SP
     print(f"{cnt_infected_A} people A at beginning of simulation")
-    cnt_infected_SP = sum(1 for _ in filter(lambda p: p.infected_SP, persons)) # diviser en A et SP
+    cnt_infected_SP = sum(1 for p in filter(lambda p: p.infected_SP, persons) if p.isolation_time == 0) # diviser en A et SP
     print(f"{cnt_infected_SP} people SP at beginning of simulation")
+    # Pour CASE ISOLATION:
+    #cnt_infected_isolated = sum(1 for p in filter(lambda p: p.infected_SP, persons) if p.isolation_time > 0) # diviser en SP et SP_isolated
+    # Pour QUARANTINE ou CASE ISOLATION:
+    cnt_infected_isolated = sum(1 for p in filter(lambda p: p.infected_SP or p.infected_A, persons) if p.isolation_time > 0)
+    print(f"{cnt_infected_isolated} people isolated at beginning of simulation")
 
     # A_plus_SP = cnt_infected
     S = sum(1 for _ in filter(lambda p: p.susceptible, persons))
@@ -454,7 +506,8 @@ def simulation_model(persons,beta):#,infectedPool):
                 targets_A.infect_one_in(Places.Community)
                 actually_infected += 1
 
-    infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
+    #infected_people_isolated = [p for p in filter(lambda p: p.infected_SP, persons) if p.isolation_time > 0]
+    infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons) if p.isolation_time == 0]
     targets_SP = InfectablePool(infected_people_SP)
     #targets_SP = infectedPool
     quota_to_infect_SP = round(beta*S/N *(cnt_infected_SP)) # ici on est en full deterministique
@@ -518,6 +571,71 @@ def simulation_model(persons,beta):#,infectedPool):
 
     print(f"{actually_infected} were infected")
 
+    infected_people_isolated = [p for p in filter(lambda p: p.infected_SP or p.infected_A, persons) if p.isolation_time > 0]
+
+    targets_isolated = InfectablePool(infected_people_isolated)
+    # targets_SP = infectedPool
+    quota_to_infect_isolated = round(beta * S / N * cnt_infected_isolated)  # ici on est en full deterministique
+
+    print(f"Isolated people will infect {quota_to_infect_isolated} persons")
+
+    # on infecte les perosnnes infectée par SP
+    for nb_infected in range(quota_to_infect_isolated):  # on prend directement le quota = nombre de personne à infecter ce jour.
+        infected_hour = random.randint(0, 24)  # donc on infectera la personne en fct de l'heure
+        # Make sure we can infect people in households before even trying.
+        if infected_hour < 13 \
+                and targets_isolated.has_targets_in(Places.HouseHold):
+
+            if (np.random.binomial(1, 0.1)):  # soit il respecte pas les règles et il infecte
+                targets_isolated.infect_one_in(Places.HouseHold)
+                actually_infected += 1
+            elif np.random.binomial(1, (1 - mesure_house_isolated) * (1 - masque)):  # soit il respecte les règles et il infecte une personne a la maison. 1-mesure % de chance
+                targets_isolated.infect_one_in(Places.HouseHold)
+                actually_infected += 1
+
+        elif infected_hour < 21:
+            work_school_others = random.uniform(0, 1)
+            if (work_school_others < work_perc):  # personne est au boulot :
+                if (np.random.binomial(1, 0.1)):  # soit il respecte pas les règles et il infecte
+                    targets_isolated.infect_one_in(Places.Workplace)
+                    actually_infected += 1
+                elif np.random.binomial(1, (1 - mesure_work_isolated) * (1 - masque)):  # soit il respecte les règles et il infecte une personne au bureau. 1-mesure % de chance
+                    targets_isolated.infect_one_in(Places.Workplace)
+                    actually_infected += 1
+            elif (work_school_others < work_perc + school_perc):  # personne est a l'école :
+                if (np.random.binomial(1, 0.1)):  # soit il respecte pas les règles et il infecte
+                    targets_isolated.infect_one_in(Places.School)
+                    actually_infected += 1
+                elif np.random.binomial(1, (1 - mesure_school_isolated) * (1 - masque)):  # soit il respecte les règles et il infecte une personne au bureau. 1-mesure % de chance
+                    targets_isolated.infect_one_in(Places.School)
+                    actually_infected += 1
+            else:  # la personne vagabonde... donc potentiellement infecte tout le monde? ou seuls les susceptible en dehors du  boulot et de l'école ?
+                # a voir entre communauté et chez elle
+                if (np.random.binomial(1, 0.5)) and targets_SP.has_targets_in(Places.HouseHold):
+                    if (np.random.binomial(1, 0.1)):  # soit il respecte pas les règles et il infecte
+                        targets_isolated.infect_one_in(Places.HouseHold)  # A -> SP
+                        actually_infected += 1
+                    elif np.random.binomial(1, (1 - mesure_house_isolated) * (1 - masque)):  # soit il respecte les règles et il infecte une personne a la maison. 1-mesure % de chance
+                        targets_isolated.infect_one_in(Places.HouseHold)
+                        actually_infected += 1
+                elif targets_isolated.has_targets_in(Places.Community):
+                    if (np.random.binomial(1, 0.1)):  # soit il respecte pas les règles et il infecte d'office
+                        targets_isolated.infect_one_in(Places.Community)
+                        actually_infected += 1
+                    elif np.random.binomial(1, (1 - mesure_community_isolated) * (1 - masque)):  # soit il respecte les règles et il infecte une personne a la communauté. 1-mesure % de chance
+                        targets_isolated.infect_one_in(Places.Community)
+                        actually_infected += 1
+
+        elif targets_isolated.has_targets_in(Places.Community):
+            if (np.random.binomial(1, 0.1)):  # soit il respecte pas les règles et il infecte d'office
+                targets_isolated.infect_one_in(Places.Community)
+                actually_infected += 1
+            elif np.random.binomial(1, (1 - mesure_community_isolated) * (1 - masque)):  # soit il respecte les règles et il infecte une personne a la communauté. 1-mesure % de chance
+                targets_isolated.infect_one_in(Places.Community)
+                actually_infected += 1
+
+    print(f"{actually_infected} were infected")
+
     return actually_infected
 
 def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
@@ -527,13 +645,14 @@ def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
     if len(infected_people_E) == 0 or rhoE > len(infected_people_E):
         print(f"infected_people_E:{len(infected_people_E)} rhoE:{rhoE}")
 
-    for person in random.sample(infected_people_E, rhoE):
+    for person in random.sample(infected_people_E, min(rhoE, len(infected_people_E))):
         person.state = "A"
 
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
     print("A : " + str(len(infected_people_A)) + "--------------" + str(sigmaA))
     for person in random.sample(infected_people_A, sigmaA):
         person.state = "SP"
+        person.set_isolation_time()
 
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
     print("A : " + str(len(infected_people_A)) + "--------------" + str(gamma4A))

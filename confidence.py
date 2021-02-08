@@ -186,8 +186,8 @@ class SarahStat(Model):
         gamma2H = round(population_leave(gamma2, H))
         thetaC = round(population_leave(theta, C))
         gamma3C = round(population_leave(gamma3, C))
-        muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne
-        etaSP = round(population_leave(eta,muSP))
+        muSP = round(population_leave(mu, sigmaA))# pas sur qu'il faut pas la moyenne
+        etaSP = round(population_leave(eta, muSP))
 
         dSdt = -betaS
         dEdt =  betaS - rhoE
@@ -282,10 +282,10 @@ if __name__ == "__main__":
     mu = 0.67
     eta = 0.8
 
-    ms = SarahStat(rows, 1000000)
+    ms = SarahStat(rows, 1000324)
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
-    NB_EXPERIMENTS = 3
+    NB_EXPERIMENTS = 200
     PREDICTED_DAYS = 135
 
     print(f"Running {NB_EXPERIMENTS} experiments")
@@ -298,7 +298,7 @@ if __name__ == "__main__":
         sres = ms.predict_stochastic(PREDICTED_DAYS)
         experiments.append(sres)
     print("... done running experiments")
-
+    graph_name = "img_final/quarantine7daysWithMask_"
     experiments = np.stack(experiments)
     for state, obs in [ (StateEnum.DHDT,ObsEnum.DHDT),
                         (StateEnum.DFDT,ObsEnum.DFDT),
@@ -319,7 +319,7 @@ if __name__ == "__main__":
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
         #plt.plot([0, PREDICTED_DAYS],[1500, 1500])
-        plt.savefig("img_final/goodlockdown_andmask_"+str(state)+".pdf")
+        plt.savefig(graph_name + str(state) + ".pdf")
 
         plt.title(str(state))
     plt.show()
@@ -339,7 +339,7 @@ if __name__ == "__main__":
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
         plt.plot([0, PREDICTED_DAYS],[1500, 1500])
-        plt.savefig("img_final/goodlockdown_andmask_"+str(state)+".pdf")
+        plt.savefig(graph_name + str(state) + ".pdf")
 
         plt.title(str(state))
     plt.show()
@@ -359,7 +359,7 @@ if __name__ == "__main__":
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
         plt.plot([0, PREDICTED_DAYS],[300, 300])
-        plt.savefig("img_final/goodlockdown_andmask_"+str(state)+".pdf")
+        plt.savefig(graph_name + str(state) + ".pdf")
 
         plt.title(str(state))
     plt.show()
@@ -382,5 +382,5 @@ if __name__ == "__main__":
         
     plt.legend()
     plt.title("preview")
-    plt.savefig("img_final/goodislockdown_andmask_allState.pdf")
+    plt.savefig(graph_name + "allState.pdf")
     plt.show()
