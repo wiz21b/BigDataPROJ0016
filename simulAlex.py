@@ -11,11 +11,17 @@ import numpy as np
 from load_stats import STATS_HOUSEHOLDS, STATS_WORKPLACES, \
     STATS_SCHOOLS, STATS_COMMUNITIES_POP
 
+
+IS_QUARANTINE = True
+IS_CASE_ISOLATION = False
+ISOLATION_TIME = 7
+NB_SIMULATION = 20
+
 args_parser = argparse.ArgumentParser()
-args_parser.add_argument("--quarantine", "-q", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a quarantine. Default is {IS_QUARANTINE}.", default=True)
-args_parser.add_argument("--case-isolation", "-i", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a case isolation policy. Default is {IS_CASE_ISOLATION}.", default=False)
-args_parser.add_argument("--isolation-time", "-t", type=int, help=f"Duration of isolation or quarantine, in days. Default {ISOLATION_TIME}.", default=7)
-args_parser.add_argument("--simulations", "-s", type=int, help=f"Number of simulations to run. Default {NB_SIMULATION}.", default=20)
+args_parser.add_argument("--quarantine", "-q", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a quarantine. Default is {IS_QUARANTINE}.", default=IS_QUARANTINE)
+args_parser.add_argument("--case-isolation", "-i", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a case isolation policy. Default is {IS_CASE_ISOLATION}.", default=IS_CASE_ISOLATION)
+args_parser.add_argument("--isolation-time", "-t", type=int, help=f"Duration of isolation or quarantine, in days. Default {ISOLATION_TIME}.", default=ISOLATION_TIME)
+args_parser.add_argument("--simulations", "-s", type=int, help=f"Number of simulations to run. Default {NB_SIMULATION}.", default=NB_SIMULATION)
 
 parsed_args = args_parser.parse_args()
 
