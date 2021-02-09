@@ -1,3 +1,4 @@
+import time
 import random
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,7 +39,7 @@ class SarahStat(Model):
             zip(['gamma1', 'gamma2', 'gamma3', 'gamma4', 'beta', 'tau', 'delta', 'sigma','rho','theta','mu','eta'],
                 params))
 
-    def __init__(self, observations, N):
+    def __init__(self, observations, N, nb_experiments):
 
         self._N = N
         nb_observations = observations.shape[0]
@@ -47,7 +48,7 @@ class SarahStat(Model):
         self._observations = np.array(observations)
         self._fittingObservations = observations[np.ix_(range(nb_observations),
                                                         list(map(int, ObsFitEnum)))]
-        self._nExperiments = 200
+        self._nExperiments = nb_experiments
 
         self._preprocess = True
         self._evaluation = 0
@@ -282,11 +283,12 @@ if __name__ == "__main__":
     mu = 0.67
     eta = 0.8
 
-    ms = SarahStat(rows, 1000324)
-    ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
-
     NB_EXPERIMENTS = 100
     PREDICTED_DAYS = 150
+    CONFIDENCE = [2.5, 50, 97.5]
+
+    ms = SarahStat(rows, 1000324, NB_EXPERIMENTS)
+    ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
     print(f"Running {NB_EXPERIMENTS} experiments")
     experiments = [] # dims : [experiment #][day][value]
@@ -295,8 +297,10 @@ if __name__ == "__main__":
         print("----------------------------------------------------------------------------")
         print("-----------------------------Experiment: {} --------------------------------".format(i))
         print("----------------------------------------------------------------------------")
+        start_time = time.time()
         sres = ms.predict_stochastic(PREDICTED_DAYS)
         experiments.append(sres)
+        print(f"Experiment {i} took {time.time() - start_time:.1f} seconds")
     print("... done running experiments")
     graph_name = "images/quarantine7daysWithMask_"
     experiments = np.stack(experiments)
@@ -307,7 +311,7 @@ if __name__ == "__main__":
                        (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[2.5,50,97.5])
+            [np.percentile(experiments[:,day,state.value],CONFIDENCE)
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
@@ -330,7 +334,7 @@ if __name__ == "__main__":
     for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED)]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[2.5,50,97.5])
+            [np.percentile(experiments[:,day,state.value],CONFIDENCE)
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
@@ -352,7 +356,7 @@ if __name__ == "__main__":
     for state, obs in [(StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL)]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[2.5,50,97.5])
+            [np.percentile(experiments[:,day,state.value],CONFIDENCE)
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
@@ -377,7 +381,7 @@ if __name__ == "__main__":
                     StateEnum.ASYMPTOMATIQUE,StateEnum.SYMPTOMATIQUE,StateEnum.SUSCEPTIBLE]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[2.5,50,97.5])
+            [np.percentile(experiments[:,day,state.value],CONFIDENCE)
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
@@ -388,7 +392,7 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"{state}")
 
         #plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state}")
-        
+
     plt.legend()
     plt.title("Preview")
     plt.savefig(graph_name + "allState.pdf")

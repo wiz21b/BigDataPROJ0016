@@ -15,22 +15,22 @@ from load_stats import STATS_HOUSEHOLDS, STATS_WORKPLACES, \
 IS_QUARANTINE = True
 IS_CASE_ISOLATION = False
 ISOLATION_TIME = 7
-NB_SIMULATION = 20
+NB_SIMULATION_DAYS = 20
 
 args_parser = argparse.ArgumentParser()
 args_parser.add_argument("--quarantine", "-q", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a quarantine. Default is {IS_QUARANTINE}.", default=IS_QUARANTINE)
 args_parser.add_argument("--case-isolation", "-i", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a case isolation policy. Default is {IS_CASE_ISOLATION}.", default=IS_CASE_ISOLATION)
 args_parser.add_argument("--isolation-time", "-t", type=int, help=f"Duration of isolation or quarantine, in days. Default {ISOLATION_TIME}.", default=ISOLATION_TIME)
-args_parser.add_argument("--simulations", "-s", type=int, help=f"Number of simulations to run. Default {NB_SIMULATION}.", default=NB_SIMULATION)
+args_parser.add_argument("--simulations", "-s", type=int, help=f"Number of simulation days to run. Default {NB_SIMULATION_DAYS}.", default=NB_SIMULATION_DAYS)
 
 parsed_args = args_parser.parse_args()
 
 IS_QUARANTINE = parsed_args.quarantine
 IS_CASE_ISOLATION = parsed_args.case_isolation
 ISOLATION_TIME = parsed_args.isolation_time
-NB_SIMULATION = parsed_args.simulations
+NB_SIMULATION_DAYS = parsed_args.simulations
 
-print(f"Parameters : quarantine={parsed_args.quarantine}, case_isolation={IS_CASE_ISOLATION}, isolation_time={ISOLATION_TIME}")
+print(f"Parameters : quarantine={parsed_args.quarantine}, case_isolation={IS_CASE_ISOLATION}, isolation_time={ISOLATION_TIME}, simulation days={NB_SIMULATION_DAYS}")
 
 class PeopleCounter:
     def __init__(self, people_dict):
@@ -121,6 +121,10 @@ class Person:
     @property
     def infected_SP(self):
         return self.state == "SP"
+
+    @property
+    def infected(self):
+        return self.state in ("SP", "E", "A")
 
     def infectables(self):
         assert self.infected, "Only an infected person can infect others"
@@ -731,7 +735,7 @@ if __name__ == "__main__":
 
 
 
-    for day in range(20):
+    for day in range(NB_SIMULATION_DAYS):
 
         # Infected people
         cnt_infected = sum(1 for _ in filter(lambda p: p.infected, persons))
