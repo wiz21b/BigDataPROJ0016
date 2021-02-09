@@ -4,7 +4,7 @@ import numpy as np
 import random
 from utils import ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, Model, residuals_error, load_data, residual_sum_of_squares, log_residual_sum_of_squares, COLORS_DICT
 
-from simul import simulation_model, model_update,partition_persons,persons,InfectablePool
+from simulAlex import simulation_model, model_update,partition_persons,persons,InfectablePool
 
 random.seed(24)
 np.random.seed(24)
@@ -102,9 +102,9 @@ class SarahStat(Model):
             ys = [S, E, A, SP, H, C, F, R]
 
             if stochastic:
-                if(d<= self._nb_observations+2):
+                if(d<= 72):
                     dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
-                    if ( d == self._nb_observations+2 ):
+                    if ( d == 72 ):
                         repartition = {
                             "S" : S+dSdt,
                             "E" : E+dEdt,
@@ -285,8 +285,8 @@ if __name__ == "__main__":
     ms = SarahStat(rows, 1000324)
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
-    NB_EXPERIMENTS = 200
-    PREDICTED_DAYS = 135
+    NB_EXPERIMENTS = 100
+    PREDICTED_DAYS = 150
 
     print(f"Running {NB_EXPERIMENTS} experiments")
     experiments = [] # dims : [experiment #][day][value]
@@ -298,7 +298,7 @@ if __name__ == "__main__":
         sres = ms.predict_stochastic(PREDICTED_DAYS)
         experiments.append(sres)
     print("... done running experiments")
-    graph_name = "img_final/quarantine7daysWithMask_"
+    graph_name = "images/quarantine7daysWithMask_"
     experiments = np.stack(experiments)
     for state, obs in [ (StateEnum.DHDT,ObsEnum.DHDT),
                         (StateEnum.DFDT,ObsEnum.DFDT),
@@ -307,10 +307,13 @@ if __name__ == "__main__":
                        (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[5,50,95])
+            [np.percentile(experiments[:,day,state.value],[2.5,50,97.5])
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
+        print('state: {}'.format(state))
+        print('percentiles: {}'.format(percentiles))
+
 
         plt.figure()
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
@@ -319,18 +322,20 @@ if __name__ == "__main__":
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
         #plt.plot([0, PREDICTED_DAYS],[1500, 1500])
+        plt.title(str(state))
         plt.savefig(graph_name + str(state) + ".pdf")
 
-        plt.title(str(state))
     plt.show()
 
     for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED)]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[5,50,95])
+            [np.percentile(experiments[:,day,state.value],[2.5,50,97.5])
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
+        print('state: {}'.format(state))
+        print('percentiles: {}'.format(percentiles))
 
         plt.figure()
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
@@ -338,19 +343,21 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
-        plt.plot([0, PREDICTED_DAYS],[1500, 1500])
+        plt.plot([0, 180],[1500, 1500])
+        plt.title(str(state))
         plt.savefig(graph_name + str(state) + ".pdf")
 
-        plt.title(str(state))
     plt.show()
 
     for state, obs in [(StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL)]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[5,50,95])
+            [np.percentile(experiments[:,day,state.value],[2.5,50,97.5])
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
+        print('state: {}'.format(state))
+        print('percentiles: {}'.format(percentiles))
 
         plt.figure()
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
@@ -358,10 +365,10 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
-        plt.plot([0, PREDICTED_DAYS],[300, 300])
+        plt.plot([0, 180],[300, 300])
+        plt.title(str(state))
         plt.savefig(graph_name + str(state) + ".pdf")
 
-        plt.title(str(state))
     plt.show()
 
 
@@ -370,10 +377,12 @@ if __name__ == "__main__":
                     StateEnum.ASYMPTOMATIQUE,StateEnum.SYMPTOMATIQUE,StateEnum.SUSCEPTIBLE]:
 
         percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],[5,50,95])
+            [np.percentile(experiments[:,day,state.value],[2.5,50,97.5])
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
+        print('state: {}'.format(state))
+        print('percentiles: {}'.format(percentiles))
 
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"{state}")
@@ -381,6 +390,6 @@ if __name__ == "__main__":
         #plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state}")
         
     plt.legend()
-    plt.title("preview")
+    plt.title("Preview")
     plt.savefig(graph_name + "allState.pdf")
     plt.show()
