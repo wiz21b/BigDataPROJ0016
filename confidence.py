@@ -1,4 +1,6 @@
+import pickle
 import time
+import os.path
 import random
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,7 +31,7 @@ def population_leave(param, population):
     # limit => on average we center. I think np
     # will use "int" instead which always favour
     # the low limit => the distribution is skewed.
-    r = np.random.binomial( round(2*average), 0.5)
+    r = np.random.binomial(round(2*average), 0.5)
 
     return r
 
@@ -301,6 +303,12 @@ if __name__ == "__main__":
         sres = ms.predict_stochastic(PREDICTED_DAYS)
         experiments.append(sres)
         print(f"Experiment {i} took {time.time() - start_time:.1f} seconds")
+    with open("experiments.pickle", "wb") as output:
+        pickle.dump(experiments, output)
+
+    if not os.path.isdir("images"):
+        os.makedirs("images")
+
     print("... done running experiments")
     graph_name = "images/quarantine7daysWithMask_"
     experiments = np.stack(experiments)
