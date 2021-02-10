@@ -286,7 +286,7 @@ if __name__ == "__main__":
     mu = 0.67
     eta = 0.8
 
-    NB_EXPERIMENTS = 5
+    NB_EXPERIMENTS = 100
     PREDICTED_DAYS = len(observations)
     CONFIDENCE = [2.5, 50, 97.5]
     CONF_INTERVAL = CONFIDENCE[2] - CONFIDENCE[0]
