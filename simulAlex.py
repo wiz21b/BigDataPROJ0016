@@ -401,6 +401,8 @@ class InfectablePool:
 
 
 def simulation_model(persons,beta):#,infectedPool):
+    """ Simulate just one day.
+    """
 
     N = 1000324
 
@@ -661,6 +663,13 @@ def simulation_model(persons,beta):#,infectedPool):
 
     return actually_infected
 
+def fail_safe_random_sample(sequence, k):
+    if k <= len(sequence):
+        return random.sample(sequence, k)
+    else:
+        print(f"WARNING : invalid random sample : len(sequence)={len(sequence)} m={k}")
+        return random.sample(sequence, len(sequence))
+
 def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
 
     infected_people_E = [p for p in filter(lambda p: p.infected_E, persons)]
@@ -668,23 +677,24 @@ def model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP):
     if len(infected_people_E) == 0 or rhoE > len(infected_people_E):
         print(f"infected_people_E:{len(infected_people_E)} rhoE:{rhoE}")
 
-    for person in random.sample(infected_people_E, min(rhoE, len(infected_people_E))):
+    for person in fail_safe_random_sample(infected_people_E, min(rhoE, len(infected_people_E))):
         person.state = "A"
 
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
     print("A : " + str(len(infected_people_A)) + "--------------" + str(sigmaA))
-    for person in random.sample(infected_people_A, sigmaA):
+    # random.sample(sequence, k) => len(sequence) must be >= k
+    for person in fail_safe_random_sample(infected_people_A, min(len(infected_people_A),sigmaA)):
         person.state = "SP"
         person.set_isolation_time()
 
     infected_people_A = [p for p in filter(lambda p: p.infected_A, persons)]
     print("A : " + str(len(infected_people_A)) + "--------------" + str(gamma4A))
-    for person in random.sample(infected_people_A, gamma4A):
+    for person in fail_safe_random_sample(infected_people_A, gamma4A):
         person.state = "HCRF"
 
     infected_people_SP = [p for p in filter(lambda p: p.infected_SP, persons)]
     print("A : " + str(len(infected_people_SP)) + "--------------" + str(gamma1SP) + " " + str(tauSP))
-    for person in random.sample(infected_people_SP, gamma1SP + tauSP):
+    for person in fail_safe_random_sample(infected_people_SP, gamma1SP + tauSP):
         person.state = "HCRF"
 
 

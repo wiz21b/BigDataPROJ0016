@@ -86,7 +86,7 @@ class StateEnum(Enum):
     # INFECTED_PER_DAY = 8
     # RSURVIVOR = 9
     # CUMULI = 10
-    
+
 
     def __int__(self):
         return self.value
@@ -222,13 +222,13 @@ def log_residual_sum_of_squares(results, observations):
     return np.sum(d)
 
 
-def load_data():
+def load_data( url="https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/data.csv"):
     observations = []
     rows = []
     positive_cumulated = 0
     tested_cumulated = 0
 
-    with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/data.csv") as fp:
+    with urllib.request.urlopen(url) as fp:
 
         data = fp.read().decode("utf-8").split('\n')
         csvreader = csv.reader(data, delimiter = ',')

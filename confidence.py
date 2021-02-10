@@ -1,3 +1,4 @@
+import glob
 import pickle
 import time
 import os.path
@@ -269,7 +270,7 @@ class SarahStat(Model):
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
 if __name__ == "__main__":
-    head, observations, rows = load_data()
+    head, observations, rows = load_data("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/SRAS.csv")
     rows = np.array(rows)
     days = len(observations)
     gamma1 = 0.23
@@ -285,9 +286,10 @@ if __name__ == "__main__":
     mu = 0.67
     eta = 0.8
 
-    NB_EXPERIMENTS = 100
-    PREDICTED_DAYS = 150
+    NB_EXPERIMENTS = 5
+    PREDICTED_DAYS = len(observations)
     CONFIDENCE = [2.5, 50, 97.5]
+    CONF_INTERVAL = CONFIDENCE[2] - CONFIDENCE[0]
 
     ms = SarahStat(rows, 1000324, NB_EXPERIMENTS)
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
@@ -303,7 +305,7 @@ if __name__ == "__main__":
         sres = ms.predict_stochastic(PREDICTED_DAYS)
         experiments.append(sres)
 
-        # Save temporary results
+        # Save partial results
         with open(f"experiments{i}.pickle", "wb") as output:
             pickle.dump(sres, output)
         print(f"Experiment {i} took {time.time() - start_time:.1f} seconds")
@@ -316,12 +318,20 @@ if __name__ == "__main__":
     with open("experiments.pickle", "rb") as finput:
         experiments = pickle.load(finput)
 
+    # experiments = []
+    # for fname in glob.glob("experiments*.pickle"):
+    #     with open(fname, "rb") as finput:
+    #         sres = pickle.load(finput)
+    #         experiments.append(sres)
+
+
     if not os.path.isdir("images"):
         os.makedirs("images")
 
     print("... done running experiments")
     graph_name = "images/quarantine7daysWithMask_"
     experiments = np.stack(experiments)
+
     for state, obs in [ (StateEnum.DHDT,ObsEnum.DHDT),
                         (StateEnum.DFDT,ObsEnum.DFDT),
                         (StateEnum.DTESTEDDT,ObsEnum.NUM_TESTED),
@@ -344,12 +354,14 @@ if __name__ == "__main__":
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
         #plt.plot([0, PREDICTED_DAYS],[1500, 1500])
+        plt.legend()
         plt.title(str(state))
         plt.savefig(graph_name + str(state) + ".pdf")
 
     plt.show()
 
-    for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED)]:
+    for state, obs, limit in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED, 1500),
+                              (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL, 300)]:
 
         percentiles = np.stack(
             [np.percentile(experiments[:,day,state.value],CONFIDENCE)
@@ -360,39 +372,21 @@ if __name__ == "__main__":
         print('percentiles: {}'.format(percentiles))
 
         plt.figure()
-        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
+        # plt.axvline(x=72)
+        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0, label=f"{int(CONF_INTERVAL)}% confidence")
         #plt.fill_between(range(PREDICTED_DAYS), percentiles[:,1],percentiles[:,3], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
-        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
+        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"Average prediction")
 
-        plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
-        plt.plot([0, 180],[1500, 1500])
-        plt.title(str(state))
+        plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"Observation")
+        plt.plot([0, PREDICTED_DAYS], [limit, limit], label="Max. threshold")
+        plt.title(f"{str(state).capitalize()}")
+        plt.xlabel("Days")
+        plt.ylabel("Number of individuals")
+        # Doesn't work : plt.plot([], [], ' ', label=f"{NB_EXPERIMENTS} experiments")
+        plt.legend()
         plt.savefig(graph_name + str(state) + ".pdf")
 
     plt.show()
-
-    for state, obs in [(StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL)]:
-
-        percentiles = np.stack(
-            [np.percentile(experiments[:,day,state.value],CONFIDENCE)
-             for day in range(PREDICTED_DAYS)])
-
-        color = COLORS_DICT[state]
-        print('state: {}'.format(state))
-        print('percentiles: {}'.format(percentiles))
-
-        plt.figure()
-        plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
-        #plt.fill_between(range(PREDICTED_DAYS), percentiles[:,1],percentiles[:,3], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
-        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color)
-
-        plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"{obs} (real)")
-        plt.plot([0, 180],[300, 300])
-        plt.title(str(state))
-        plt.savefig(graph_name + str(state) + ".pdf")
-
-    plt.show()
-
 
     plt.figure()
     for state in [(StateEnum.HOSPITALIZED),(StateEnum.CRITICAL),StateEnum.EXPOSED,StateEnum.RECOVERED,StateEnum.FATALITIES,
