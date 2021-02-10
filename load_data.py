@@ -57,7 +57,8 @@ observations = []
 rows = []
 positive_cumulated = 0
 
-with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/data.csv") as fp:
+#with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/data.csv") as fp:
+with urllib.request.urlopen("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/SRAS.csv") as fp:
 
     data = fp.read().decode("utf-8").split('\n')
     csvreader = csv.reader(data, delimiter=',')
@@ -78,72 +79,72 @@ print(tabulate(observations, headers=head))
 observations = np.array(rows).transpose()
 
 
-def error(values, observations):
-    i = np.log(np.array(values[1][1:]))
-    i_obs = np.log(np.array(observations[NUM_POSITIVE][1:]))
-    assert len(i) == len(i_obs)
+# def error(values, observations):
+#     i = np.log(np.array(values[1][1:]))
+#     i_obs = np.log(np.array(observations[NUM_POSITIVE][1:]))
+#     assert len(i) == len(i_obs)
 
-    h = np.log(np.array(values[2][1:]))
-    h_obs = np.log(np.array(observations[NUM_HOSPITALIZED][1:]))
+#     h = np.log(np.array(values[2][1:]))
+#     h_obs = np.log(np.array(observations[NUM_HOSPITALIZED][1:]))
 
-    # print(i)
-    # print(i_obs)
-    delta_i = i - i_obs
-    delta_h = h - h_obs
+#     # print(i)
+#     # print(i_obs)
+#     delta_i = i - i_obs
+#     delta_h = h - h_obs
 
-    return np.sum(delta_i*delta_i) + np.sum(delta_h*delta_h)
+#     return np.sum(delta_i*delta_i) + np.sum(delta_h*delta_h)
 
-def gafunc( params):
-    global observations
+# def gafunc( params):
+#     global observations
 
-    i_start, h_start, alpha, beta, gamma1, gamma2 = params
+#     i_start, h_start, alpha, beta, gamma1, gamma2 = params
 
-    v = np.array(model([INITIAL_POP, i_start, h_start], [alpha, beta, gamma1, gamma2], len(rows)-1)).transpose()
-    e = error(v, observations)
+#     v = np.array(model([INITIAL_POP, i_start, h_start], [alpha, beta, gamma1, gamma2], len(rows)-1)).transpose()
+#     e = error(v, observations)
 
-    return e
+#     return e
 
 
-varbound=np.array([[0,5],[1,2],[0.01,0.5],[0.01,0.5],[0.01,0.5],[0.2,0.5]])
+# varbound=np.array([[0,5],[1,2],[0.01,0.5],[0.01,0.5],[0.01,0.5],[0.2,0.5]])
 
-gamodel = ga( function=gafunc, dimension=6,variable_type='real',variable_boundaries=varbound)
-gamodel.run()
+# gamodel = ga( function=gafunc, dimension=6,variable_type='real',variable_boundaries=varbound)
+# gamodel.run()
 
-print( gamodel.output_dict)
+# print( gamodel.output_dict)
 
-i_start, h_start, alpha, beta, gamma1, gamma2 = gamodel.output_dict['variable']
-best_v = np.array(model([INITIAL_POP, i_start, h_start], [alpha, beta, gamma1, gamma2], len(rows)*4)).transpose()
+# i_start, h_start, alpha, beta, gamma1, gamma2 = gamodel.output_dict['variable']
+# best_v = np.array(model([INITIAL_POP, i_start, h_start], [alpha, beta, gamma1, gamma2], len(rows)*4)).transpose()
 
-def brute_force():
-    global observations
+# def brute_force():
+#     global observations
 
-    best_e = 9999999999
-    best_v = None
+#     best_e = 9999999999
+#     best_v = None
 
-    for h_start in np.arange(1, 10, 1):
-        for i_start in np.arange(1, 10, 1):
-            for alpha in np.arange(0.001, 1, 0.005):
-                for beta in np.arange(0.0001, 0.2, 0.005):
-                    v = np.array(model([i_start, h_start], [alpha, beta], len(rows)-1)).transpose()
-                    e = error(v, observations)
-                    if e < best_e:
-                        print("-"*80)
-                        print(best_e)
-                        print(alpha, beta)
-                        best_e = e
-                        best_v = v
+#     for h_start in np.arange(1, 10, 1):
+#         for i_start in np.arange(1, 10, 1):
+#             for alpha in np.arange(0.001, 1, 0.005):
+#                 for beta in np.arange(0.0001, 0.2, 0.005):
+#                     v = np.array(model([i_start, h_start], [alpha, beta], len(rows)-1)).transpose()
+#                     e = error(v, observations)
+#                     if e < best_e:
+#                         print("-"*80)
+#                         print(best_e)
+#                         print(alpha, beta)
+#                         best_e = e
+#                         best_v = v
 
-plt.plot(best_v[1], label="Positive model")
-plt.plot(observations[NUM_POSITIVE], label="Positive real")
-plt.plot(best_v[2], label="Hospitalized model")
-plt.plot(observations[NUM_HOSPITALIZED], label="Hospitalized real")
-#plt.plot(best_v[0])
-plt.legend()
-plt.ylabel('Individuals')
-plt.xlabel('Days')
-plt.show()
+# plt.plot(best_v[1], label="Positive model")
+# plt.plot(observations[NUM_POSITIVE], label="Positive real")
+# plt.plot(best_v[2], label="Hospitalized model")
+# plt.plot(observations[NUM_HOSPITALIZED], label="Hospitalized real")
+# #plt.plot(best_v[0])
+# plt.legend()
+# plt.ylabel('Individuals')
+# plt.xlabel('Days')
+# plt.show()
 
-exit()
+# exit()
 
 
 rows = np.array(rows)

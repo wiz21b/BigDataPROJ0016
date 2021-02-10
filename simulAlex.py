@@ -17,20 +17,20 @@ IS_CASE_ISOLATION = False
 ISOLATION_TIME = 7
 NB_SIMULATION_DAYS = 20
 
-args_parser = argparse.ArgumentParser()
-args_parser.add_argument("--quarantine", "-q", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a quarantine. Default is {IS_QUARANTINE}.", default=IS_QUARANTINE)
-args_parser.add_argument("--case-isolation", "-i", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a case isolation policy. Default is {IS_CASE_ISOLATION}.", default=IS_CASE_ISOLATION)
-args_parser.add_argument("--isolation-time", "-t", type=int, help=f"Duration of isolation or quarantine, in days. Default {ISOLATION_TIME}.", default=ISOLATION_TIME)
-args_parser.add_argument("--simulations", "-s", type=int, help=f"Number of simulation days to run. Default {NB_SIMULATION_DAYS}.", default=NB_SIMULATION_DAYS)
+# args_parser = argparse.ArgumentParser()
+# args_parser.add_argument("--quarantine", "-q", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a quarantine. Default is {IS_QUARANTINE}.", default=IS_QUARANTINE)
+# args_parser.add_argument("--case-isolation", "-i", type=lambda v:bool(distutils.util.strtobool(v)), help=f"Set a case isolation policy. Default is {IS_CASE_ISOLATION}.", default=IS_CASE_ISOLATION)
+# args_parser.add_argument("--isolation-time", "-t", type=int, help=f"Duration of isolation or quarantine, in days. Default {ISOLATION_TIME}.", default=ISOLATION_TIME)
+# args_parser.add_argument("--simulations", "-s", type=int, help=f"Number of simulation days to run. Default {NB_SIMULATION_DAYS}.", default=NB_SIMULATION_DAYS)
 
-parsed_args = args_parser.parse_args()
+# parsed_args = args_parser.parse_args()
 
-IS_QUARANTINE = parsed_args.quarantine
-IS_CASE_ISOLATION = parsed_args.case_isolation
-ISOLATION_TIME = parsed_args.isolation_time
-NB_SIMULATION_DAYS = parsed_args.simulations
+# IS_QUARANTINE = parsed_args.quarantine
+# IS_CASE_ISOLATION = parsed_args.case_isolation
+# ISOLATION_TIME = parsed_args.isolation_time
+# NB_SIMULATION_DAYS = parsed_args.simulations
 
-print(f"Parameters : quarantine={parsed_args.quarantine}, case_isolation={IS_CASE_ISOLATION}, isolation_time={ISOLATION_TIME}, simulation days={NB_SIMULATION_DAYS}")
+# print(f"Parameters : quarantine={parsed_args.quarantine}, case_isolation={IS_CASE_ISOLATION}, isolation_time={ISOLATION_TIME}, simulation days={NB_SIMULATION_DAYS}")
 
 class PeopleCounter:
     def __init__(self, people_dict):
@@ -218,97 +218,124 @@ class Groups:
         print(f"{len(self.households)} households")
         print(f"{len(self.communities)} communities")
 
-all_groups = Groups()
+def initialize_world():
+    all_groups = Groups()
 
-# --------------------------------------------------------------------
-# Create 1000000 infectious people
+    # --------------------------------------------------------------------
+    # Create 1000000 infectious people
 
-print("Creating people")
-persons = [ Person() for i in range(1000324)]
+    print("Creating people")
+    persons = [Person() for i in range(1000324)]
 
-# --------------------------------------------------------------------
-# Dropping people in workplaces
+    # --------------------------------------------------------------------
+    # Dropping people in workplaces
 
-print("Creating workplaces")
-nb_wp = 0
-p_ndx = 0
-for size, nb in STATS_WORKPLACES:
+    print("Creating workplaces")
 
-    if nb > 0:
-        # FIXME Could be more random
-        mean_size = (size[0] + size[1])//2
+    shuf_ndx = [i for i in range(len(persons))]
+    random.shuffle(shuf_ndx)
+
+    nb_wp = 0
+    p_ndx = 0
+    for size, nb in STATS_WORKPLACES:
+
+        if nb > 0:
+            # FIXME Could be more random
+            mean_size = (size[0] + size[1])//2
+            for i in range(nb):
+                wp = WorkPlace()
+                all_groups.workplaces.add(wp)
+                nb_wp += 1
+                for j in range(mean_size):
+                    p = shuf_ndx[p_ndx]
+                    persons[p].workplace = wp
+                    wp.add_person(persons[p])
+                    p_ndx += 1
+
+    persons_in_companies = sum(1 for _ in filter(lambda p: p.workplace, persons))
+    print(f"{persons_in_companies} persons in {nb_wp} workplaces")
+
+    # --------------------------------------------------------------------
+    # Dropping people in schools
+
+    print("Creating schools")
+    persons_not_in_schools = [_ for _ in filter(
+        lambda p: p.workplace is not None, persons)]
+    random.shuffle(persons_not_in_schools)
+
+    nb_sc = 0
+    p_ndx = 0
+    for size, nb in STATS_SCHOOLS:
+
+        if nb > 0:
+            # FIXME Could be more random
+            mean_size = (size[0] + size[1])//2
+            for i in range(nb):
+                school = School()
+                all_groups.schools.add(school)
+                nb_sc += 1
+                for j in range(mean_size):
+                    persons_not_in_schools[p_ndx].school = school
+                    school.add_person(persons_not_in_schools[p_ndx])
+                    p_ndx += 1
+
+
+    # --------------------------------------------------------------------
+    # Dropping people in households
+
+    print("Creating households")
+    nb_hh = 0
+    p_ndx = 0
+
+    shuf_ndx = [i for i in range(len(persons))]
+    random.shuffle(shuf_ndx)
+
+    # stats = (taille household, nb de household de cette taille)
+
+    for size, nb in enumerate(STATS_HOUSEHOLDS):
+
+        # HH size : 333333 222222 111111111 44444 55555
+        # CO size : 3333111111111112222223333344444
+
+        # Create 'nb' households of size 'size'
         for i in range(nb):
-            wp = WorkPlace()
-            all_groups.workplaces.add(wp)
-            nb_wp += 1
-            for j in range(mean_size):
-                persons[p_ndx].workplace = wp
-                wp.add_person(persons[p_ndx])
+            hh = HouseHold()
+            all_groups.households.add(hh)
+            nb_hh += 1
+            for j in range(size):
+                p = shuf_ndx[p_ndx]
+                persons[p].household = hh
+                hh.add_person(persons[p])
                 p_ndx += 1
+    print(f"{p_ndx} persons in {nb_hh} households")
 
-persons_in_companies = sum(1 for _ in filter(lambda p: p.workplace, persons))
-print(f"{persons_in_companies} persons in {nb_wp} workplaces")
 
-# --------------------------------------------------------------------
-# Dropping people in schools
+    # --------------------------------------------------------------------
+    # Dropping people in communities
 
-print("Creating schools")
-persons_not_in_schools = [_ for _ in filter(
-    lambda p: p.workplace is not None, persons)]
+    print(f"Creating communities of {len(STATS_COMMUNITIES_POP)-1} types.")
 
-nb_sc = 0
-p_ndx = 0
-for size, nb in STATS_SCHOOLS:
+    shuf_ndx = [i for i in range(len(persons))]
+    random.shuffle(shuf_ndx)
 
-    if nb > 0:
-        # FIXME Could be more random
-        mean_size = (size[0] + size[1])//2
-        for i in range(nb):
-            school = School()
-            all_groups.schools.add(school)
-            nb_sc += 1
-            for j in range(mean_size):
-                persons_not_in_schools[p_ndx].school = school
-                school.add_person(persons_not_in_schools[p_ndx])
+    nb_com = 0
+    p_ndx = 0
+    for size in STATS_COMMUNITIES_POP:
+        if size is not None:
+            com = Community()
+            all_groups.communities.add(com)
+            nb_com += 1
+            for j in range(size):
+                p = shuf_ndx[p_ndx]
+                persons[p].community = com
+                com.add_person(persons[p])
                 p_ndx += 1
+    print(f"{p_ndx} persons in {nb_com} communities")
 
+    all_groups.status()
 
-# --------------------------------------------------------------------
-# Dropping people in households
+    return persons
 
-print("Creating households")
-nb_hh = 0
-p_ndx = 0
-for size, nb in enumerate(STATS_HOUSEHOLDS):
-    for i in range(nb):
-        hh = HouseHold()
-        all_groups.households.add(hh)
-        nb_hh += 1
-        for j in range(size):
-            persons[p_ndx].household = hh
-            hh.add_person(persons[p_ndx])
-            p_ndx += 1
-print(f"{p_ndx} persons in {nb_hh} households")
-
-
-# --------------------------------------------------------------------
-# Dropping people in communities
-
-print(f"Creating communities of {len(STATS_COMMUNITIES_POP)-1} types.")
-nb_com = 0
-p_ndx = 0
-for size in STATS_COMMUNITIES_POP:
-    if size is not None:
-        com = Community()
-        all_groups.communities.add(com)
-        nb_com += 1
-        for j in range(size):
-            persons[p_ndx].community = com
-            com.add_person(persons[p_ndx])
-            p_ndx += 1
-print(f"{p_ndx} persons in {nb_com} communities")
-
-all_groups.status()
 
 # --------------------------------------------------------------------
 # Dispatching the quota
@@ -733,6 +760,7 @@ if __name__ == "__main__":
         "R" : 43237
     }
 
+    persons = initialize_world()
     partition_persons(persons, repartition)
     targets = InfectablePool([p for p in
                               filter(lambda p: p.infected_A, persons)])

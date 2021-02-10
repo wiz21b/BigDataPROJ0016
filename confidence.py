@@ -8,10 +8,10 @@ import numpy as np
 import random
 from utils import ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, Model, residuals_error, load_data, residual_sum_of_squares, log_residual_sum_of_squares, COLORS_DICT
 
-from simulAlex import simulation_model, model_update,partition_persons,persons,InfectablePool
+from simulAlex import simulation_model, model_update,partition_persons,InfectablePool, initialize_world
 
-random.seed(24)
-np.random.seed(24)
+random.seed(204)
+np.random.seed(204)
 
 def population_leave(param, population):
     # param : the proportion of population that should
@@ -99,6 +99,11 @@ class SarahStat(Model):
         S, E, A, SP, H, C, F, R, infected_per_day, R_out_HC, cumulI = initial_conditions
         cumulH = 0
 
+        if stochastic:
+            # Each time we make an experiment, we randomize the whole population
+            # We do that to avoid a bias in the way the experiments are done
+            persons = initialize_world()
+
         data = []
 
         for d in range(days):
@@ -120,7 +125,7 @@ class SarahStat(Model):
                         #infected_people = [p for p in filter(lambda p: p.infected_A or p.infected_SP, persons)]
                         #self.infectedPool = InfectablePool(infected_people)
                 else:
-                    dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic_measure(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
+                    dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT= self._model_stochastic_measure(persons, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
             else:
                 dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT = self._model(ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta)
 
@@ -209,11 +214,9 @@ class SarahStat(Model):
         dSPIndt = sigmaA
         DTESTEDDT = muSP
         DTESTEDPOSDT = etaSP
-
-
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
-    def _model_stochastic_measure(self, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta):
+    def _model_stochastic_measure(self, persons, ys, gamma1, gamma2, gamma3, gamma4, beta, tau, delta, sigma, rho, theta,mu,eta):
         S, E, A, SP, H, C, F, R = ys
 
         N = self._N
@@ -242,12 +245,11 @@ class SarahStat(Model):
         gamma2H = round(population_leave(gamma2, H))
         thetaC = round(population_leave(theta, C))
         gamma3C = round(population_leave(gamma3, C))
-        muSP = round(population_leave(mu,sigmaA))# pas sur qu'il faut pas la moyenne
-        etaSP = round(population_leave(eta,muSP))
+        muSP = round(population_leave(mu, sigmaA))# pas sur qu'il faut pas la moyenne
+        etaSP = round(population_leave(eta, muSP))
 
-        betaS = simulation_model(persons,beta)#,self.infectedPool)
+        betaS = simulation_model(persons, beta)#,self.infectedPool)
 
-        print(betaS)
         dSdt = -betaS
         dEdt =  betaS - rhoE
         #dAdt = rho * E - sigma*E - gamma4 * A
@@ -265,12 +267,20 @@ class SarahStat(Model):
         DTESTEDDT = muSP
         DTESTEDPOSDT = etaSP
 
-        model_update(persons,rhoE,sigmaA,gamma4A,tauSP,gamma1SP)
+        model_update(persons, rhoE, sigmaA, gamma4A, tauSP, gamma1SP)
 
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt,dFIndt,dSPIndt,DTESTEDDT,DTESTEDPOSDT]
 
 if __name__ == "__main__":
+    import distutils
+    import argparse
+
+    args_parser = argparse.ArgumentParser()
+    args_parser.add_argument("--graphics", "-g", action="store_true", help=f"Draw charts from a past simulation (without running a new simulation)", default=False)
+    parsed_args = args_parser.parse_args()
+
     head, observations, rows = load_data("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/SRAS.csv")
+
     rows = np.array(rows)
     days = len(observations)
     gamma1 = 0.23
@@ -294,36 +304,36 @@ if __name__ == "__main__":
     ms = SarahStat(rows, 1000324, NB_EXPERIMENTS)
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
-    print(f"Running {NB_EXPERIMENTS} experiments")
     experiments = []  # dims : [experiment #][day][value]
 
-    for i in range(NB_EXPERIMENTS):
-        print("----------------------------------------------------------------------------")
-        print("-----------------------------Experiment: {} --------------------------------".format(i))
-        print("----------------------------------------------------------------------------")
-        start_time = time.time()
-        sres = ms.predict_stochastic(PREDICTED_DAYS)
-        experiments.append(sres)
+    if not parsed_args.graphics:
+        print(f"Running {NB_EXPERIMENTS} experiments")
+        for i in range(NB_EXPERIMENTS):
+            print("----------------------------------------------------------------------------")
+            print("-----------------------------Experiment: {} --------------------------------".format(i))
+            print("----------------------------------------------------------------------------")
+            start_time = time.time()
+            sres = ms.predict_stochastic(PREDICTED_DAYS)
+            experiments.append(sres)
 
-        # Save partial results
-        with open(f"experiments{i}.pickle", "wb") as output:
-            pickle.dump(sres, output)
-        print(f"Experiment {i} took {time.time() - start_time:.1f} seconds")
+            # Save partial results
+            with open(f"experiments_v2_{i}.pickle", "wb") as output:
+                pickle.dump(sres, output)
+            print(f"Experiment {i} took {time.time() - start_time:.1f} seconds")
 
-    # Save complete results
-    with open("experiments.pickle", "wb") as output:
-        pickle.dump(experiments, output)
+        # Save complete results
+        with open("experiments_v2.pickle", "wb") as output:
+            pickle.dump(experiments, output)
 
-    # Reload
-    with open("experiments.pickle", "rb") as finput:
-        experiments = pickle.load(finput)
+    # # Reload
+    # with open("experiments_v2.pickle", "rb") as finput:
+    #     experiments = pickle.load(finput)
 
-    # experiments = []
-    # for fname in glob.glob("experiments*.pickle"):
-    #     with open(fname, "rb") as finput:
-    #         sres = pickle.load(finput)
-    #         experiments.append(sres)
-
+    experiments = []
+    for fname in glob.glob("experiments_v2_*.pickle"):
+        with open(fname, "rb") as finput:
+            sres = pickle.load(finput)
+            experiments.append(sres)
 
     if not os.path.isdir("images"):
         os.makedirs("images")
