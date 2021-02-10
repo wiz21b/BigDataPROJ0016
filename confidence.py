@@ -27,7 +27,7 @@ def population_leave(param, population):
 
     # The rounding is important because binomial
     # is for integer number. By using a round we favor
-    # sometimes the high limit sometimes the loaw
+    # sometimes the high limit sometimes the low
     # limit => on average we center. I think np
     # will use "int" instead which always favour
     # the low limit => the distribution is skewed.
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     ms._fit_params = ms._params_array_to_dict([gamma1, gamma2, gamma3,  gamma4, beta,  tau, delta, sigma, rho, theta,mu,eta])
 
     print(f"Running {NB_EXPERIMENTS} experiments")
-    experiments = [] # dims : [experiment #][day][value]
+    experiments = []  # dims : [experiment #][day][value]
 
     for i in range(NB_EXPERIMENTS):
         print("----------------------------------------------------------------------------")
@@ -302,9 +302,19 @@ if __name__ == "__main__":
         start_time = time.time()
         sres = ms.predict_stochastic(PREDICTED_DAYS)
         experiments.append(sres)
+
+        # Save temporary results
+        with open(f"experiments{i}.pickle", "wb") as output:
+            pickle.dump(sres, output)
         print(f"Experiment {i} took {time.time() - start_time:.1f} seconds")
+
+    # Save complete results
     with open("experiments.pickle", "wb") as output:
         pickle.dump(experiments, output)
+
+    # Reload
+    with open("experiments.pickle", "rb") as finput:
+        experiments = pickle.load(finput)
 
     if not os.path.isdir("images"):
         os.makedirs("images")
