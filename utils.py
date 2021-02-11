@@ -92,6 +92,8 @@ class StateEnum(Enum):
         return self.value
 
     def __str__(self):
+        if self in STRINGS:
+            return STRINGS[self]
         return self.name.replace("_", " ").lower()
 
     @staticmethod
@@ -132,8 +134,8 @@ STRINGS = { ObsEnum.NUM_POSITIVE : "num positive",
             ObsEnum.CUMULATIVE_TESTED_POSITIVE : "Cumulative tested positive",
             ObsEnum.CUMULATIVE_TESTED : "Cumulative tested",
             ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "Cumulative hospitalizations",
-            StateEnum.SYMPTOMATIQUE : "Symptomatique",
-            StateEnum.ASYMPTOMATIQUE : "Asymptomatique",
+            StateEnum.SYMPTOMATIQUE : "Symptomatic",
+            StateEnum.ASYMPTOMATIQUE : "Asymptomatic",
             StateEnum.EXPOSED : "Exposed",
             StateEnum.SUSCEPTIBLE:"Susceptible",
             StateEnum.RECOVERED: "Recovered",
@@ -143,8 +145,8 @@ STRINGS = { ObsEnum.NUM_POSITIVE : "num positive",
            }
 
 COLORS_DICT = {ObsEnum.NUM_POSITIVE: 'green',
-                StateEnum.DTESTEDPOSDT:'green',
-                StateEnum.DTESTEDDT:'green',
+               StateEnum.DTESTEDPOSDT:'green',
+               StateEnum.DTESTEDDT:'green',
                ObsEnum.CUMULATIVE_TESTED_POSITIVE: "green",
                ObsEnum.NUM_TESTED: 'blue',
                ObsEnum.CUMULATIVE_TESTED: "blue",

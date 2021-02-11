@@ -345,8 +345,7 @@ if __name__ == "__main__":
     for state, obs in [ (StateEnum.DHDT,ObsEnum.DHDT),
                         (StateEnum.DFDT,ObsEnum.DFDT),
                         (StateEnum.DTESTEDDT,ObsEnum.NUM_TESTED),
-                        (StateEnum.DTESTEDPOSDT,ObsEnum.NUM_POSITIVE),
-                       (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
+                        (StateEnum.DTESTEDPOSDT,ObsEnum.NUM_POSITIVE) ]:
 
         percentiles = np.stack(
             [np.percentile(experiments[:,day,state.value],CONFIDENCE)
@@ -371,7 +370,8 @@ if __name__ == "__main__":
     plt.show()
 
     for state, obs, limit in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED, 1500),
-                              (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL, 300)]:
+                              (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL, 300),
+                              (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES, None)]:
 
         percentiles = np.stack(
             [np.percentile(experiments[:,day,state.value],CONFIDENCE)
@@ -388,8 +388,9 @@ if __name__ == "__main__":
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"Average prediction")
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"Observation")
-        plt.plot([0, PREDICTED_DAYS], [limit, limit], label="Max. threshold")
-        plt.title(f"{str(state).capitalize()}")
+        if limit:
+            plt.plot([0, PREDICTED_DAYS], [limit, limit], label="Max. threshold")
+        plt.title(f"{str(state).capitalize()} ({len(experiments)} exp.)")
         plt.xlabel("Days")
         plt.ylabel("Number of individuals")
         # Doesn't work : plt.plot([], [], ' ', label=f"{NB_EXPERIMENTS} experiments")
@@ -415,7 +416,9 @@ if __name__ == "__main__":
 
         #plt.plot(rows[:, state.value], "--", c=COLORS_DICT[state], label=f"{state}")
 
+    plt.xlabel("Days")
+    plt.ylabel("Number of individuals")
     plt.legend()
-    plt.title("Preview")
+    plt.title("All states")
     plt.savefig(graph_name + "allState.pdf")
     plt.show()
