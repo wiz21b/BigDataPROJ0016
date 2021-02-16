@@ -399,15 +399,17 @@ if __name__ == "__main__":
         # Separate fitted values from predictions
         plt.axvline(x=72,lw=0.5,c="black")
         plt.text(72-2,0,"fit",verticalalignment='top',horizontalalignment='right')
-        plt.text(72+2,0,"prediction",verticalalignment='top')
+        plt.text(72+2,0,"simulation",verticalalignment='top')
 
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0, label=f"{int(CONF_INTERVAL)}% confidence")
         #plt.fill_between(range(PREDICTED_DAYS), percentiles[:,1],percentiles[:,3], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
-        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"Average prediction")
+        plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"Model prediction")
 
         plt.plot(rows[:, obs.value], "--", c=COLORS_DICT[obs], label=f"Observation")
         if limit:
-            plt.plot([0, PREDICTED_DAYS], [limit, limit], lw=1,c="blue", label="Max. threshold")
+            plt.plot([0, PREDICTED_DAYS], [limit, limit], lw=0.5,c="black")
+            plt.text(190, limit,"max. threshold",c="black",verticalalignment='bottom',horizontalalignment='right')
+
         plt.title(f"{str(state).capitalize()} ({len(experiments)} exp.)")
         plt.xlabel("Days")
         plt.ylabel("Number of individuals")
@@ -419,7 +421,7 @@ if __name__ == "__main__":
 
     plt.figure()
     for state in [(StateEnum.HOSPITALIZED),(StateEnum.CRITICAL),StateEnum.EXPOSED,StateEnum.RECOVERED,StateEnum.FATALITIES,
-                    StateEnum.ASYMPTOMATIQUE,StateEnum.SYMPTOMATIQUE,StateEnum.SUSCEPTIBLE]:
+                  StateEnum.ASYMPTOMATIQUE,StateEnum.SYMPTOMATIQUE,StateEnum.SUSCEPTIBLE]:
 
         percentiles = np.stack(
             [np.percentile(experiments[:,day,state.value],CONFIDENCE)
