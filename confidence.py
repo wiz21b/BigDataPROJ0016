@@ -307,7 +307,7 @@ if __name__ == "__main__":
 
     experiments = []  # dims : [experiment #][day][value]
 
-    if not parsed_args.graphics:
+    if not parsed_args.graphics and not parsed_args.error:
         print(f"Running {NB_EXPERIMENTS} experiments")
         for i in range(NB_EXPERIMENTS):
             print("----------------------------------------------------------------------------")
@@ -337,13 +337,23 @@ if __name__ == "__main__":
         for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED),
                            (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL),
                            (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
-            mean_error[i] = np.mean(abs(np.array(experiments)[:, :, state.value] - np.array(observations)[:, obs.value]))
-            std_dev_error[i] = np.std(abs(np.array(experiments)[:, :, state.value] - np.array(observations)[:, obs.value]))
+            # Compute means over days and experiments; for each state.
+            error = abs(np.array(experiments)[:, :, state.value] - np.array(observations)[:, obs.value])
+            mean_error[i] = np.mean(error)
+            std_dev_error[i] = np.std(error)
             i += 1
 
-        indexes = np.array([StateEnum.HOSPITALIZED.value, StateEnum.CRITICAL.value, StateEnum.FATALITIES.value])
+        # Compute relative error (the error over a value is expressed
+        # as a fraction of that value).
+        # Computations are done on means.
+
+        values_of_interest = [StateEnum.HOSPITALIZED, StateEnum.CRITICAL, StateEnum.FATALITIES]
+        indexes = np.array([x.value for x in values_of_interest])
         mean_error /= np.mean(np.array(experiments), axis = (0, 1))[indexes]
         std_dev_error /= np.mean(np.array(experiments), axis = (0, 1))[indexes]
+
+        for i, val in enumerate(values_of_interest):
+            print(f"Error over {str(val)} : mean={mean_error[i]:.2f}, std dev={std_dev_error[i]:.2f}")
 
     # experiments = []
     # for fname in glob.glob("experiments_v2_*.pickle"):
@@ -368,9 +378,8 @@ if __name__ == "__main__":
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
-        print('state: {}'.format(state))
-        print('percentiles: {}'.format(percentiles))
-
+        # print('state: {}'.format(state))
+        # print('percentiles: {}'.format(percentiles))
 
         plt.figure()
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
@@ -394,8 +403,8 @@ if __name__ == "__main__":
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
-        print('state: {}'.format(state))
-        print('percentiles: {}'.format(percentiles))
+        # print('state: {}'.format(state))
+        # print('percentiles: {}'.format(percentiles))
 
         plt.figure()
 
@@ -431,8 +440,8 @@ if __name__ == "__main__":
              for day in range(PREDICTED_DAYS)])
 
         color = COLORS_DICT[state]
-        print('state: {}'.format(state))
-        print('percentiles: {}'.format(percentiles))
+        # print('state: {}'.format(state))
+        # print('percentiles: {}'.format(percentiles))
 
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"{state}")
