@@ -382,7 +382,10 @@ if __name__ == "__main__":
         print('percentiles: {}'.format(percentiles))
 
         plt.figure()
-        # plt.axvline(x=72)
+
+        # Separate fitted values from predictions
+        plt.axvline(x=72)
+
         plt.fill_between(range(PREDICTED_DAYS), percentiles[:,0],percentiles[:,2], facecolor=None, color=color,alpha=0.25,linewidth=0.0, label=f"{int(CONF_INTERVAL)}% confidence")
         #plt.fill_between(range(PREDICTED_DAYS), percentiles[:,1],percentiles[:,3], facecolor=None, color=color,alpha=0.25,linewidth=0.0)
         plt.plot(range(PREDICTED_DAYS), percentiles[:,1], color=color, label=f"Average prediction")
