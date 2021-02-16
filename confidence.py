@@ -326,14 +326,14 @@ if __name__ == "__main__":
             pickle.dump(experiments, output)
 
     # # Reload
-    # with open("experiments_v2.pickle", "rb") as finput:
-    #     experiments = pickle.load(finput)
+    with open("experiments_v2.pickle", "rb") as finput:
+        experiments = pickle.load(finput)
 
-    experiments = []
-    for fname in glob.glob("experiments_v2_*.pickle"):
-        with open(fname, "rb") as finput:
-            sres = pickle.load(finput)
-            experiments.append(sres)
+    # experiments = []
+    # for fname in glob.glob("experiments_v2_*.pickle"):
+    #     with open(fname, "rb") as finput:
+    #         sres = pickle.load(finput)
+    #         experiments.append(sres)
 
     if not os.path.isdir("images"):
         os.makedirs("images")
