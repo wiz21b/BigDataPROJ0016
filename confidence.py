@@ -341,6 +341,9 @@ if __name__ == "__main__":
             std_dev_error[i] = np.std(abs(np.array(experiments)[:, :, state.value] - np.array(observations)[:, obs.value]))
             i += 1
 
+        indexes = np.array([StateEnum.HOSPITALIZED.value, StateEnum.CRITICAL.value, StateEnum.FATALITIES.value])
+        mean_error /= np.mean(np.array(experiments), axis = (0, 1))[indexes]
+        std_dev_error /= np.mean(np.array(experiments), axis = (0, 1))[indexes]
 
     # experiments = []
     # for fname in glob.glob("experiments_v2_*.pickle"):
