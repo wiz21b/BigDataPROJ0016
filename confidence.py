@@ -277,6 +277,7 @@ if __name__ == "__main__":
 
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument("--graphics", "-g", action="store_true", help=f"Draw charts from a past simulation (without running a new simulation)", default=False)
+    args_parser.add_argument("--error", "-e", action="store_true", help=f"Compute avg error and std dev", default=False)
     parsed_args = args_parser.parse_args()
 
     head, observations, rows = load_data("https://raw.githubusercontent.com/ADelau/proj0016-epidemic-data/main/SRAS.csv")
@@ -328,6 +329,18 @@ if __name__ == "__main__":
     # # Reload
     with open("experiments_v2.pickle", "rb") as finput:
         experiments = pickle.load(finput)
+
+    if parsed_args.error:
+        i = 0
+        mean_error = np.zeros(3)
+        std_dev_error = np.zeros(3)
+        for state, obs in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED),
+                           (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL),
+                           (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES)]:
+            mean_error[i] = np.mean(abs(np.array(experiments)[:, :, state.value] - np.array(observations)[:, obs.value]))
+            std_dev_error[i] = np.std(abs(np.array(experiments)[:, :, state.value] - np.array(observations)[:, obs.value]))
+            i += 1
+
 
     # experiments = []
     # for fname in glob.glob("experiments_v2_*.pickle"):
