@@ -59,9 +59,15 @@ def read_csv(url) -> pandas.DataFrame:
     return csv
 
 
-start_time = datetime.datetime.now()
-_csvs = [read_csv(url) for url in _URLS]
-end_time = datetime.datetime.now()
-print(f"Loaded data in {(end_time - start_time).total_seconds():.2f} sec.")
+def _read_data():
+    start_time = datetime.datetime.now()
+    _csvs = [read_csv(url) for url in _URLS]
+    end_time = datetime.datetime.now()
+    print(f"Loaded data in {(end_time - start_time).total_seconds():.2f} sec.")
+    return _csvs
 
-CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC = _csvs
+CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC = _read_data()
+# Fixing data "<5"
+CASES_MUNI["CASES"].replace("<5", "2.5", inplace=True)
+# Fixing type
+CASES_MUNI["CASES"] = pandas.to_numeric(CASES_MUNI["CASES"])
