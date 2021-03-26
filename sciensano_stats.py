@@ -4,7 +4,7 @@ from read_sciensano import *
 
 def rolling_mean(df, window):
     return df
-    return df.rolling(window=window).mean()
+    #return df.rolling(window=window).mean()
 
 # CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC = _read_data()
 

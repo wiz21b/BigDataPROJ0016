@@ -248,7 +248,18 @@ class SarahStat(Model):
         muSP = round(population_leave(mu, sigmaA))# pas sur qu'il faut pas la moyenne
         etaSP = round(population_leave(eta, muSP))
 
-        betaS = simulation_model(persons, beta)#,self.infectedPool)
+        """
+        At this point the "world" has persons in various compartments.
+        The call to simulation model will compute how many people
+        will get infected (since this is the source of everything in
+        our equations and it is not given in the data provided).
+        """
+
+        betaS = simulation_model(persons, beta)  #,self.infectedPool)
+
+        """ With betaS known, we can now update our analytical model.
+        This recomputes the size of all the compartments.
+        """
 
         dSdt = -betaS
         dEdt =  betaS - rhoE
@@ -266,6 +277,10 @@ class SarahStat(Model):
         dSPIndt = sigmaA
         DTESTEDDT = muSP
         DTESTEDPOSDT = etaSP
+
+        """ Now the compartments size are updated, we feed them
+        back into our world model.
+        """
 
         model_update(persons, rhoE, sigmaA, gamma4A, tauSP, gamma1SP)
 
