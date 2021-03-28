@@ -1,9 +1,15 @@
 import matplotlib.pyplot as plt
 from utils import load_sciensano_data
 
+USE_ROLLING_MEANS = True
+
+
 def rolling_mean(df, window):
-    return df
-    #return df.rolling(window=window).mean()
+    if USE_ROLLING_MEANS:
+        return df.rolling(window=window).mean()
+    else:
+        return df
+
 
 if __name__ == "__main__":
 
