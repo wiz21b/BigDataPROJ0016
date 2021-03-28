@@ -9,50 +9,43 @@ import os
 import datetime
 import tempfile
 from io import StringIO
-import pandas
+import pandas as pd
+from functools import reduce
 
 
 COLORS = ['red', 'green', 'blue', 'magenta', 'purple',
           'lime', 'orange', 'chocolate', 'gray',
           'darkgreen', 'darkviolet']
 
+OBSERVATIONS = ["DATE", "NUM_POSITIVE", "CUMULATIVE_POSITIVE", "NUM_TESTED", "CUMULATIVE_TESTED", ]
 
 class ObsEnum(Enum):
-    # These 6 are the one provided by the teachers.
-    # Do not change them
+    # the date of the current day
+    DATE = 0
+    # the number of individuals tested positive on this day.
+    NEW_POSITIVE = 1
+    # the cumulative number of individuals tested positive until this day.
+    CUMULATIVE_POSITIVE = 2
+    # the number of tests performed during this day.
+    NEW_TESTED = 3
+    # the cumulative number of tests until this day.
+    CUMULATIVE_TESTED = 4
 
-    DAYS = 0
+    # the number of new patients at the hospital (in simple beds or in ICU) on this day.
+    NEW_IN = 4 # = DHDT
+    # the number of people that moved out of the hospital (from simple beds or from ICU) on this day.
+    NEW_OUT = 5  # = RSURVIVOR
+    # the number of individuals currently at the hospital excluding those in ICU.
+    NUM_HOSPITALIZED = 6
+    # the cumulative number of individuals who were or are being hospitalized.
+    CUMULATIVE_HOSPITALIZATIONS = 7
+    # the number of individuals currently in ICU (num_critical are not counted as part of num_hospitalized).
+    NUM_CRITICAL = 8
 
-    # number of individuals tested positive on this day.
-    NUM_POSITIVE = 1
-
-    # number of tests performed during the last day.
-    NUM_TESTED = 2
-
-    # number of individuals currently at the hospital.
-    NUM_HOSPITALIZED = 3
-
-    # cumulative number of individuals who were or are
-    # being hospitalized.
-    CUMULATIVE_HOSPITALIZATIONS = 4
-
-    # number of individuals currently in an ICU (criticals
-    # are not counted as part of num_hospitalized).
-    NUM_CRITICAL = 5
-
-    # cumulative number of deaths
-    NUM_FATALITIES = 6
-
-    # Other data series we add to the dataset
-    CUMULATIVE_TESTED_POSITIVE = 7
-    CUMULATIVE_TESTED = 8
-    RSURVIVOR = 9
-    DHDT = 10
-    DFDT = 11
-
-    # Other data not in the dataset
-    # RECOVERED = 10
-    # SUSPECT = 12
+    # the number of new deaths on the current day.
+    NEW_FATALITIES = 9  # = DFDT
+    # the cumulative number of deaths until the current day.
+    NUM_FATALITIES = 10
 
     def __int__(self):
         return self.value
@@ -72,25 +65,51 @@ class ObsEnum(Enum):
 
 
 class StateEnum(Enum):
-    # The mutually exclusive states of our SEIHCR model
-    SUSCEPTIBLE = 0
-    EXPOSED = 1
-    ASYMPTOMATIQUE = 2
-    SYMPTOMATIQUE = 3
-    HOSPITALIZED = 4
-    CRITICAL = 5
-    FATALITIES = 6
-    RECOVERED = 7
-    DHDT = 8
-    DFDT = 9
-    DSPDT = 10
-    DTESTEDDT = 11
-    DTESTEDPOSDT = 12
+    # -------- The mutually exclusive states of our extended SEIR model --------
 
-    # Additional deduced states
-    # INFECTED_PER_DAY = 8
-    # RSURVIVOR = 9
-    # CUMULI = 10
+    # The number of people that could catch the virus at the current day.
+    SUSCEPTIBLE = 0
+    # The number of people that caught the disease but are not infectious yet.
+    EXPOSED = 1
+
+    # --- Infectious ---
+    # The number of people that currently do not develop symptoms and yet are infectious.
+    ASYMPTOMATIC = 2
+    # The number of people that currently have symptoms and are infectious.
+    SYMPTOMATIC = 3
+    # ---
+
+    # --- At the hospital ---
+    # The number of people at the hospital in simple beds (excluding ICU beds).
+    HOSPITALIZED = 4
+    # The number of people at the hospital in ICU.
+    CRITICAL = 5
+    # ---
+
+    # The number of deaths.
+    FATALITIES = 6
+    # The number of people that recovered from the virus and are not susceptible to catch the disease.
+    RECOVERED = 7
+    # The number of new patients at the hospital (in simple beds or in ICU) on this day.
+    NEW_IN = 8 # = DHDT
+    # The number of new deaths on the current day.
+    NEW_FATALITIES = 9 # = DFDT
+
+    #  --------
+
+
+    # -------- The additional non-mutually exclusive states of our model --------
+
+    # The number of people detected as infected on the current day
+    NEW_POSITIVE = 8 # = INFECTED_PER_DAY
+    # The cumulative number of people that were detected as infected until the current day.
+    CUMULATIVE_POSITIVE = 9 # = CUMULI
+    # The number of newly tested people on this day.
+    NEW_TESTED = 10 # = DTESTEDDT
+    # The number of people that leaves the hospital healthy on the current day.
+    NEW_OUT = 11 # = RSURVIVOR
+
+    # --------
 
 
     def __int__(self):
@@ -109,10 +128,11 @@ class StateEnum(Enum):
 # The two underlying Enum classes are used to match the indexes of the
 # "fitting and fitted values" between the observations and the states
 class ObsFitEnum(Enum):
-    DHDT = ObsEnum.DHDT.value
-    DFDT = ObsEnum.DFDT.value
-    DSPDT = ObsEnum.NUM_POSITIVE.value
-    # RSURVIVOR =  ObsEnum.RSURVIVOR.value
+    NEW_POSITIVE = ObsEnum.NEW_POSITIVE.value  # DSPDT = ObsEnum.NUM_POSITIVE.value
+    NEW_IN = ObsEnum.NEW_IN.value # DHDT = ObsEnum.DHDT.value
+    NEW_OUT = ObsEnum.NEW_OUT.value  # RSURVIVOR =  ObsEnum.RSURVIVOR.value
+    NEW_FATALITIES = ObsEnum.NEW_FATALITIES.value # DFDT = ObsEnum.DFDT.value
+
 
     def __int__(self):
         return self.value
@@ -122,10 +142,10 @@ class ObsFitEnum(Enum):
 
 
 class StateFitEnum(Enum):
-    DHDT = StateEnum.DHDT.value
-    DFTD = StateEnum.DFDT.value
-    DSPDT = StateEnum.DSPDT.value
-    # RSURVIVOR = StateEnum.RSURVIVOR.value
+    NEW_POSITIVE = StateEnum.NEW_POSITIVE.value  # DSPDT = StateEnum.DSPDT.value
+    NEW_IN = StateEnum.NEW_IN.value  # DHDT = StateEnum.DHDT.value
+    NEW_OUT = StateEnum.NEW_OUT.value  # RSURVIVOR = StateEnum.RSURVIVOR.value
+    NEW_FATALITIES = StateEnum.NEW_FATALITIES.value  # DFTD = StateEnum.DFDT.value
 
     def __int__(self):
         return self.value
@@ -134,13 +154,13 @@ class StateFitEnum(Enum):
         return self.name.replace("_", " ").lower()
 
 
-STRINGS = { ObsEnum.NUM_POSITIVE : "num positive",
-            ObsEnum.NUM_TESTED : "Tested / day",
-            ObsEnum.CUMULATIVE_TESTED_POSITIVE : "Cumulative tested positive",
-            ObsEnum.CUMULATIVE_TESTED : "Cumulative tested",
-            ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "Cumulative hospitalizations",
-            StateEnum.SYMPTOMATIQUE : "Symptomatic",
-            StateEnum.ASYMPTOMATIQUE : "Asymptomatic",
+STRINGS = { ObsEnum.NEW_POSITIVE : "Tested Positive",
+            ObsEnum.NEW_TESTED : "Tested / Day",
+            ObsEnum.CUMULATIVE_POSITIVE : "Cumulative Tested Positive",
+            ObsEnum.CUMULATIVE_TESTED : "Cumulative Tested",
+            ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "Cumulative Hospitalizations",
+            StateEnum.SYMPTOMATIC : "Symptomatic",
+            StateEnum.ASYMPTOMATIC : "Asymptomatic",
             StateEnum.EXPOSED : "Exposed",
             StateEnum.SUSCEPTIBLE:"Susceptible",
             StateEnum.RECOVERED: "Recovered",
@@ -149,21 +169,21 @@ STRINGS = { ObsEnum.NUM_POSITIVE : "num positive",
             StateEnum.FATALITIES: "Fatalities"
            }
 
-COLORS_DICT = {ObsEnum.NUM_POSITIVE: 'green',
-               StateEnum.DTESTEDPOSDT:'green',
-               StateEnum.DTESTEDDT:'green',
-               ObsEnum.CUMULATIVE_TESTED_POSITIVE: "green",
-               ObsEnum.NUM_TESTED: 'blue',
+COLORS_DICT = {ObsEnum.NEW_POSITIVE: 'green',
+               StateEnum.NEW_POSITIVE:'green',
+               StateEnum.NEW_POSITIVE:'green',
+               ObsEnum.CUMULATIVE_POSITIVE: "green",
+               ObsEnum.NEW_TESTED: 'blue',
                ObsEnum.CUMULATIVE_TESTED: "blue",
-               ObsEnum.DHDT: 'purple',
-               StateEnum.DHDT: 'purple',
-               ObsEnum.DFDT: 'black',
-               StateEnum.SYMPTOMATIQUE : 'lime',
-               StateEnum.ASYMPTOMATIQUE : 'pink',
-               StateEnum.EXPOSED : 'brown',
+               ObsEnum.NEW_IN: 'purple',
+               StateEnum.NEW_IN: 'purple',
+               ObsEnum.NEW_FATALITIES: 'black',
+               StateEnum.SYMPTOMATIC: 'lime',
+               StateEnum.ASYMPTOMATIC: 'pink',
+               StateEnum.EXPOSED: 'brown',
                StateEnum.SUSCEPTIBLE:'grey',
                StateEnum.RECOVERED: 'cyan',
-               StateEnum.DFDT: 'black',
+               StateEnum.NEW_FATALITIES: 'black',
                ObsEnum.NUM_HOSPITALIZED: 'purple',
                ObsEnum.NUM_CRITICAL: 'red',
                ObsEnum.NUM_FATALITIES: 'black',
@@ -315,11 +335,11 @@ def _read_csv(url) -> pandas.DataFrame:
 
     dtypes = {}
     if "NIS5" in data:
-        dtypes['NIS5'] = pandas.Int64Dtype()
+        dtypes['NIS5'] = pd.Int64Dtype()
 
-    csv = pandas.read_csv(StringIO(data),
-                          dtype=dtypes,
-                          parse_dates=parse_dates)
+    csv = pd.read_csv(StringIO(data),
+                      dtype=dtypes,
+                      parse_dates=parse_dates)
 
     # csv.info()
     # print(csv)
@@ -336,6 +356,40 @@ def load_sciensano_data():
     # Fixing data entries equal to "<5"
     CASES_MUNI["CASES"].replace("<5", "2.5", inplace=True)
     # Fixing type
-    CASES_MUNI["CASES"] = pandas.to_numeric(CASES_MUNI["CASES"])
+    CASES_MUNI["CASES"] = pd.to_numeric(CASES_MUNI["CASES"])
 
     return CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC
+
+
+def load_model_data():
+    # Load sciensano's datasets
+    CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC = load_sciensano_data()
+
+    # Grouping together the dataframe rows when similar dates via a sum operation
+    DAILY_TESTS = TESTS.groupby("DATE", as_index = False).sum()
+    DAILY_HOSP = HOSP.groupby("DATE", as_index = False).sum()
+    DAILY_DEATHS = MORT.groupby("DATE", as_index = False).sum()
+
+    # Selection and renaming of dataframes columns
+    DAILY_TESTS = pd.concat([DAILY_TESTS.DATE,
+                             DAILY_TESTS.TESTS_ALL_POS.rename("NEW_POSITIVE"),
+                             DAILY_TESTS.TESTS_ALL_POS.cumsum().rename("CUMULATIVE_POSITIVE"),
+                             DAILY_TESTS.TESTS_ALL.rename("NEW_TESTED"),
+                             DAILY_TESTS.TESTS_ALL.cumsum().rename("CUMULATIVE_TESTED")], axis=1)
+
+    DAILY_HOSP = pd.concat([DAILY_HOSP.DATE,
+                            DAILY_HOSP.NEW_IN,
+                            DAILY_HOSP.NEW_OUT,
+                            (DAILY_HOSP.TOTAL_IN - DAILY_HOSP.TOTAL_IN_ICU).rename("NUM_HOSPITALIZED"),
+                            DAILY_HOSP.NEW_IN.cumsum().rename("CUMULATIVE_HOSPITALIZATIONS"),
+                            DAILY_HOSP.TOTAL_IN_ICU.rename("NUM_CRITICAL")], axis=1)
+
+    DAILY_DEATHS = pd.concat([DAILY_DEATHS.DATE,
+                              DAILY_DEATHS.DEATHS.rename("NEW_FATALITIES"),
+                              DAILY_DEATHS.DEATHS.cumsum().rename("NUM_FATALITIES")], axis=1)
+
+    # Outer join of the dataframes on column 'DATE'
+    df = reduce(lambda left, right: pd.merge(left, right, on=['DATE'], how='outer'),
+                [DAILY_TESTS, DAILY_HOSP, DAILY_DEATHS]).fillna(0)
+
+    return df
