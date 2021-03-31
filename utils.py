@@ -6,8 +6,8 @@ from collections import namedtuple
 import urllib.request
 
 import os
-import datetime
 import tempfile
+import datetime
 from io import StringIO
 import pandas
 
