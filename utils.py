@@ -179,17 +179,25 @@ COLORS_DICT = {ObsEnum.NUM_POSITIVE: 'green',
 
 
 class Model:
-    def __init__(self, observations):
-        # """ observations : a numpy array. Each row of the
-        # array corresponds to one type of observation. Each
-        # column correspond to one (daily) observation for the
-        # corresponding type.
+    def __init__(self, stocha = True, errorFct = None, nbExperiments = 100):
+        self._stochastic = stocha
+        self._ICInitialized = False
+        self._paramInitialized = False
+        self._fitted = False
+        self._initialConditions = {}
+        self._currentState = {}
+        self._params = {}
+        self._optimalParams = {}
+        self._population = 0
+        self._nbExperiments = nbExperiments
+        self._errorFct = None
+        self._data = None
+        self._dataLength = 0
 
-        # The rows' numbers must match `ObsRow`.
-        # """
-        raise NotImplementedError
+        if not(stocha):
+            self._errorFct = errorFct
 
-    def fit_parameters(self, error_func):
+    def fit_parameters(self, method, errorFct, randomPick):
         # Call this method to perform a parameters
         # fit.
 
@@ -208,6 +216,29 @@ class Model:
         #   ObsRow above. The idea is that the model tells what data it
         #   computes.
         raise NotImplementedError
+
+    def population_leave(self, param, population):
+        # param : the proportion of population that should
+        # leave on average
+
+        if population < 0:
+            # Fix for some edge cases
+            return 0
+
+        # Part of the population that leaves on average
+        average = param * population
+
+        # Binomial centered on the population part
+
+        # The rounding is important because binomial
+        # is for integer number. By using a round we favor
+        # sometimes the high limit sometimes the loaw
+        # limit => on average we center. I think np
+        # will use "int" instead which always favour
+        # the low limit => the distribution is skewed.
+        r = np.random.binomial(round(2 * average), 0.5)
+
+        return r
 
 
 def residuals_error(results, observations):
