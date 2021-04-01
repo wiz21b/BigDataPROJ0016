@@ -1,6 +1,12 @@
 from __future__ import annotations
 from enum import Enum
 import numpy as np
+import pandas as pd
+import csv
+from collections import namedtuple
+from functools import reduce
+from enum import Enum
+import numpy as np
 import csv
 from collections import namedtuple
 import urllib.request
@@ -9,7 +15,6 @@ import os
 import tempfile
 import datetime
 from io import StringIO
-import pandas
 
 
 COLORS = ['red', 'green', 'blue', 'magenta', 'purple',
@@ -281,9 +286,8 @@ _SCIENSANO_URLS = [
     ("https://epistat.sciensano.be/Data/COVID19BE_VACC.csv")]
 
 
-def _read_csv(url) -> pandas.DataFrame:
+def _read_csv(url) -> pd.DataFrame:
     """ Read a CSV file at url.
-
     Will cache a copy so that subsequent runs will reuse the
     copy, avoid HTTP connection and improving load times by
     a factor of 10. The copy is refreshed every day.
@@ -315,11 +319,11 @@ def _read_csv(url) -> pandas.DataFrame:
 
     dtypes = {}
     if "NIS5" in data:
-        dtypes['NIS5'] = pandas.Int64Dtype()
+        dtypes['NIS5'] = pd.Int64Dtype()
 
-    csv = pandas.read_csv(StringIO(data),
-                          dtype=dtypes,
-                          parse_dates=parse_dates)
+    csv = pd.read_csv(StringIO(data),
+                      dtype=dtypes,
+                      parse_dates=parse_dates)
 
     # csv.info()
     # print(csv)
@@ -336,6 +340,49 @@ def load_sciensano_data():
     # Fixing data entries equal to "<5"
     CASES_MUNI["CASES"].replace("<5", "2.5", inplace=True)
     # Fixing type
-    CASES_MUNI["CASES"] = pandas.to_numeric(CASES_MUNI["CASES"])
+    CASES_MUNI["CASES"] = pd.to_numeric(CASES_MUNI["CASES"])
 
     return CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC
+
+
+def load_model_data():
+    # Load sciensano's datasets
+    CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC = load_sciensano_data()
+
+    # Grouping together the dataframe rows when similar dates via a sum operation
+    DAILY_TESTS = TESTS.groupby("DATE", as_index = False).sum()
+    DAILY_HOSP = HOSP.groupby("DATE", as_index = False).sum()
+    DAILY_DEATHS = MORT.groupby("DATE", as_index = False).sum()
+
+    print(DAILY_TESTS)
+
+    # Selection and renaming of dataframes columns
+    DAILY_TESTS1 = pd.concat([DAILY_TESTS.DATE,
+                             DAILY_TESTS.TESTS_ALL_POS.rename("NUM_POSITIVE"),
+                             DAILY_TESTS.TESTS_ALL.rename("NUM_TESTED")], axis=1)
+
+    DAILY_HOSP1 = pd.concat([DAILY_HOSP.DATE,
+                            (DAILY_HOSP.TOTAL_IN - DAILY_HOSP.TOTAL_IN_ICU).rename("NUM_HOSPITALIZED"),
+                            DAILY_HOSP.NEW_IN.cumsum().rename("CUMULATIVE_HOSPITALIZATIONS"),
+                            DAILY_HOSP.TOTAL_IN_ICU.rename("NUM_CRITICAL")], axis=1)
+
+    DAILY_DEATHS1 = pd.concat([DAILY_DEATHS.DATE,
+                              DAILY_DEATHS.DEATHS.cumsum().rename("NUM_FATALITIES")], axis=1)
+
+    DAILY_TESTS2 = pd.concat([DAILY_TESTS.DATE,
+                              DAILY_TESTS.TESTS_ALL_POS.cumsum().rename("CUMULATIVE_TESTED_POSITIVE"),
+                              DAILY_TESTS.TESTS_ALL.cumsum().rename("CUMULATIVE_TESTED")], axis=1)
+
+    DAILY_HOSP2 = pd.concat([DAILY_HOSP.DATE,
+                            DAILY_HOSP.NEW_OUT.rename("RSURVIVOR"),
+                            DAILY_HOSP.NEW_IN.rename("DHDT")], axis=1)
+
+    DAILY_DEATHS2 = pd.concat([DAILY_DEATHS.DATE,
+                              DAILY_DEATHS.DEATHS.rename("DFDT")], axis=1)
+
+
+    # Outer join of the dataframes on column 'DATE'
+    df = reduce(lambda left, right: pd.merge(left, right, on=['DATE'], how='outer'),
+                [DAILY_TESTS1, DAILY_HOSP1, DAILY_DEATHS1, DAILY_TESTS2, DAILY_HOSP2, DAILY_DEATHS2]).fillna(0)
+
+    return df
