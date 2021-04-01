@@ -484,7 +484,7 @@ if __name__ == "__main__":
     rows = np.array(observations)
     days = len(rows)
 
-    ms = SEIR_HCD(stocha = False, errorFct=residual_sum_of_squares)
+    ms = SEIR_HCD()
 
     N = 11000000
     E0 = 3000
@@ -500,7 +500,7 @@ if __name__ == "__main__":
 
     ms.set_IC(conditions = IC)
 
-    ms.fit_parameters(data = rows, randomPick = True, picks = 100, start = 10,
+    ms.fit_parameters(data = rows, randomPick = True, picks = 100, start = 0,
                       end = 50)
 
     sres = ms.predict(end = 50)
