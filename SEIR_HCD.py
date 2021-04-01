@@ -1,4 +1,4 @@
-
+# coding=utf-8
 import random
 import numpy as np
 import math
@@ -15,16 +15,16 @@ random.seed(1001)
 np.random.seed(1001)
 
 class SEIR_HCD(Model):
-    """ 'stocha' -> modèle stochastique ou pas
-        'immunity' -> Les gens développent une immunité ou pas
-        'errorFct' à fournir si pas stochastique
-        'nbExpériments' pour le fit
+    """ 'stocha' -> modÃ¨le stochastique ou pas
+        'immunity' -> Les gens dÃ©veloppent une immunitÃ© ou pas
+        'errorFct' Ã  fournir si pas stochastique
+        'nbExpÃ©riments' pour le fit
     """
     def __init__ (self, stocha = True, immunity = True, errorFct = None, nbExperiments = 100):
         super().__init__(stocha = stocha, errorFct = errorFct, nbExperiments = nbExperiments)
-        self._immunity = immunity # ne sert pas à l'instant xar posait un problème
-                                  # si set à False car alors on avait un paramètre
-                                  # dont les bounds étaient 0
+        self._immunity = immunity # ne sert pas Ã  l'instant xar posait un problÃ¨me
+                                  # si set Ã  False car alors on avait un paramÃ¨tre
+                                  # dont les bounds Ã©taient 0
         self._fittingPeriod = None
 
         self._compartmentNames = ['Susceptibles',
@@ -63,7 +63,7 @@ class SEIR_HCD(Model):
         self._ICInitialized = True
         return
 
-    # J'ai mis ça là mais je ne sais pas encore si je l'utiliserai
+    # J'ai mis Ã§a lÃ  mais je ne sais pas encore si je l'utiliserai
     def set_param(self, parameters):
         requiredParameters = len(self._paramNames)
             
@@ -76,7 +76,7 @@ class SEIR_HCD(Model):
         
         return
 
-    # J'ai mis ça là mais je ne sais pas encore si je l'utiliserai
+    # J'ai mis Ã§a lÃ  mais je ne sais pas encore si je l'utiliserai
     def set_state(self, compartments):
         if not(len(compartments) == len(self._compartmentNames)):
             print("ERROR: Number of initial conditions given not matching with the model.")
@@ -85,13 +85,13 @@ class SEIR_HCD(Model):
         self._currentState = dict(zip(self._compartmentNames, compartments))
         return
 
-    """ - Seulement la méthode 'LBFGSB' est implémentée pour l'instant mais
-          j'ai laissé la possibliité au cas où.
-        - RandomPick = True permet de faire un pre-processing des paramètres
+    """ - Seulement la mÃ©thode 'LBFGSB' est implÃ©mentÃ©e pour l'instant mais
+          j'ai laissÃ© la possibliitÃ© au cas oÃ¹.
+        - RandomPick = True permet de faire un pre-processing des paramÃ¨tres
           pour trouver un premier jeu correct
-        - Fera un fit sur end - start days sur les données entre le jour 'start'
+        - Fera un fit sur end - start days sur les donnÃ©es entre le jour 'start'
           et le jour 'end'
-        - parmas permets de définir le valeur initiale des paramètres lors du fit.
+        - parmas permets de dÃ©finir le valeur initiale des paramÃ¨tres lors du fit.
     """
     def fit_parameters(self, data = None, optimizer = 'LBFGSB',  
                        randomPick = False, 
@@ -155,98 +155,117 @@ class SEIR_HCD(Model):
 
         return
 
-    """ Fonction à nettoyer ! """
+    """ Fonction Ã  nettoyer ! """
+
     def get_initial_parameters(self, randomPick = False, picks = 1000):
-        min_incubation_time = 1
-        max_incubation_time = 5
-        min_symptomatic_time = 4
+        min_incubation_time = 5
+        max_incubation_time = 6
+
+        min_presymptomatic_time = 1
+        max_presymptomatic_time = 3
+
+        min_symptomatic_time = 5
         max_symptomatic_time = 10
 
-        # ----------------------------------
-        # Tau (SP -> H)
-        tau_0 = 0.01
-        tau_min = 0.001
-        tau_max = 0.999
+        mortality_rate_in_ICU = 0.279
+        mortality_rate_in_simple_hospital_beds = 0.168
+
+        avg_stay_in_ICU_in_case_of_death = 19.3
+        avg_stay_in_simple_hospital_beds_in_case_of_death = 6.1
+
+        avg_stay_in_ICU_in_case_of_recovery = 9.9
+        avg_stay_in_hospital_simple_beds_in_case_of_recovery = 8
 
         # ----------------------------------
-        # Gamma 4 ()
-        gamma4_max = 0.999
-        gamma4_min = 0.001
-        gamma4_0 = 0.12
+        # Tau (SP -> H) # -> won't be constant over time
+        avg_time_for_transfer_from_SP_to_H = 5.7
+        tau_0 = 0.01 / avg_time_for_transfer_from_SP_to_H  # 1 symptomatic out of 100 goes to the hospital # blind hypothesis
+        tau_min = 0.0001 / avg_time_for_transfer_from_SP_to_H  # 1 symptomatic out of 10000 goes to the hospital # blind hypothesis
+        tau_max = 0.1 / avg_time_for_transfer_from_SP_to_H  # 1 symptomatic out of 10 goes to the hospital # blind hypothesis
 
         # ----------------------------------
-        # Gamma1 (SP -> R)
-        gamma1_max = 0.999
-        gamma1_min = 0.001
-        gamma1_0 = 0.23
+        # Gamma 4 (A -> R) # -> probably constant over time
+        gamma4_max = 1 / min_incubation_time
+        gamma4_min = 1 / (max_incubation_time + max_symptomatic_time)
+        gamma4_0 = (gamma4_max + gamma4_min) / 2
 
         # ----------------------------------
-        # Gamma2 (H -> R) & Gamma3 (C -> R)
-        gamma2_min = 0.001
-        gamma2_0 = 1 / 13  # 0.2  # arbitrary choice
-        gamma2_max = 0.999
+        # Gamma1 (SP -> R) # -> probably constant over time
+        gamma1_max = 1 / min_symptomatic_time
+        gamma1_min = 1 / max_symptomatic_time
+        gamma1_0 = (gamma1_max + gamma1_min) / 2
 
         # ----------------------------------
-        # Gamma3 ()
-        gamma3_min = 0.001
-        gamma3_0 = 1 / 19
-        gamma3_max = 0.999
-        
+        # Gamma2 (H -> R) # -> probably constant over time
+        gamma2_min = 0.2  # blind hypothesis
+        gamma2_0 = (1 - mortality_rate_in_simple_hospital_beds) / avg_stay_in_hospital_simple_beds_in_case_of_recovery
+        gamma2_max = 0.4  # blind hypothesis
+
+        # ----------------------------------
+        # Gamma3 (C -> R) # -> probably constant over time
+        gamma3_min = 0.1  # blind hypothesis
+        gamma3_0 = 0.05  # blind hypothesis
+        gamma3_max = (1 - mortality_rate_in_ICU) / avg_stay_in_ICU_in_case_of_recovery
+
         # Discuter du bazard en dessous
         # ----------------------------------
-        # Beta
-        #R0_min = 1  # or else the virus is not growing exponentially
-        #R0_max = 2.8 * 1.5  # the most virulent influenza pandemic
-        #R0_avg = (R0_min + R0_max) / 2
-        #infectious_time = (min_symptomatic_time + max_symptomatic_time) / 2
-        # beta_0 = R0_avg / infectious_time  
-        # beta_min = R0_min / max_symptomatic_time
-        # beta_max = R0_max / min_symptomatic_time
-        beta_0 = 0.25
-        beta_min = 0.001
-        beta_max = 0.999
+        # Beta (S -> E) # -> will vary a lot over time
+        R0_min = 0.1  # should be set < 1 if we want to permit a fall after a peak
+        R0_max = 4
+        R0_avg = (R0_min + R0_max) / 2
+        infectious_time = (min_symptomatic_time + max_symptomatic_time) / 2
+        beta_0 = R0_avg / infectious_time
+        beta_min = R0_min / max_symptomatic_time
+        beta_max = R0_max / min_symptomatic_time
 
         # ----------------------------------
-        # Delta ()
-        delta_min = 0.001  # 1/10
-        delta_max = 0.999
-        delta_0 = 0.025
+        # Delta (H -> C) # -> should vary with the influence of the British variant
+        fraction_of_hospitalized_not_transfering_to_ICU = 0.753
+        delta_min = 0.01  # blind hypothesis
+        delta_max = 0.06  # blind hypothesis
+        delta_0 = (1 - fraction_of_hospitalized_not_transfering_to_ICU) / \
+                  ((avg_stay_in_hospital_simple_beds_in_case_of_recovery + avg_stay_in_ICU_in_case_of_death) / 2)  # semi-blind hyptohesis
 
         # ----------------------------------
-        # Rho ()
-        rho_max = 0.999
-        rho_0 = 0.89  # 2 / (min_incubation_time + max_incubation_time)
-        rho_min = 0.001
+        # Rho (E -> A) # -> probably constant over time
+        rho_max = 1 / min_incubation_time
+        rho_0 = 2 / (min_incubation_time + max_incubation_time)
+        rho_min = 1 / max_incubation_time
 
         # ----------------------------------
-        # Theta ()
-        theta_min = 0.001
-        theta_max = 0.999
-        theta_0 = 0.04
+        # Theta (C -> F) # -> should vary with the influence of the British variant
+        # Hypothesis: stay and mortality in simple hospital beds lower bounds the corresponding numbers in ICU
+        theta_min = mortality_rate_in_simple_hospital_beds / avg_stay_in_ICU_in_case_of_death  # semi-blind hypothesis
+        theta_max = mortality_rate_in_ICU / avg_stay_in_simple_hospital_beds_in_case_of_death  # semi-blind hypothesis
+        theta_0 = mortality_rate_in_ICU / avg_stay_in_ICU_in_case_of_death
 
         # ----------------------------------
-        # Sigma ()
-        sigma_max = 0.999
-        sigma_min = 0.001
-        sigma_0 = 0.6
+        # Sigma (A -> SP) # -> probably constant over time
+        sigma_max = 1 / min_presymptomatic_time
+        sigma_min = 1 / max_presymptomatic_time
+
+        sigma_0 = (sigma_max + sigma_min) / 2
 
         # ----------------------------------
-        # Mu () 
-        mu_max = 0.999
-        mu_min = 0.001
-        mu_0 = 0.67
+        # Mu (sigma * A -> T) # -> will vary over time with the test capacity and the testing rules
+        mu_max = 0.9  # blind hypothesis
+        mu_min = 0.4  # blind hypothesis
+        mu_0 = (mu_min + mu_max) / 2  # blind hypothesis
 
         # ----------------------------------
-        # Eta ()
-        eta_max = 0.999
-        eta_min = 0.001
-        eta_0 = 0.8
+        # Eta (T -> TP) # -> will vary a lot over time with the peak of contamination
+        eta_max = 0.3288
+        eta_min = 0.009
+        eta_0 = 0.07
 
         # ----------------------------------
         # Alpha 
-        alpha_min = 0.001
-        alpha_max = 0.999
-        alpha_0 = 0.01
+        #alpha_min = 0.001
+        #alpha_max = 0.999
+        #alpha_0 = 0.01
+        alpha_min = 0
+        alpha_max = 0
+        alpha_0 = 0
         #alpha_bounds = [0.001, 0.01, 0.95]
 
         # ----------------------------------
@@ -281,7 +300,7 @@ class SEIR_HCD(Model):
                     paramValues += [alpha]
                 
 
-                # Pas en dict ici car ça poserait un problème dans fit_parameters()
+                # Pas en dict ici car Ã§a poserait un problÃ¨me dans fit_parameters()
                 score = self.plumb(paramValues)
                 if score > best:
                     best = score
@@ -319,9 +338,9 @@ class SEIR_HCD(Model):
 
         return params
 
-    """Partie déterminieste à faire"""
+    """Partie dÃ©terminieste Ã  faire"""
     def plumb(self, parameters):
-        # TO DO: Partie déterministe!
+        # TO DO: Partie dÃ©terministe!
         days = self._fittingPeriod[1]-self._fittingPeriod[0]
         params = dict(zip(self._paramNames, parameters))
 
@@ -367,8 +386,8 @@ class SEIR_HCD(Model):
             """ A faire !"""
             return
 
-    """ - Va simuler 'end' days mais ne retournera que ceux après 'start'
-        - Si on ne fournit pas 'parameters' on utilise les paramètres trouvés
+    """ - Va simuler 'end' days mais ne retournera que ceux aprÃ¨s 'start'
+        - Si on ne fournit pas 'parameters' on utilise les paramÃ¨tres trouvÃ©s
           par le fit.
     """
     def predict(self, start = 0, end = None, parameters = None):
@@ -399,7 +418,7 @@ class SEIR_HCD(Model):
             F += dFdt
             R += dRdt
 
-            # On a peut être plus besoin de tout ça mais je le laisse en attendant car sinon faut aussi tout changer
+            # On a peut Ãªtre plus besoin de tout Ã§a mais je le laisse en attendant car sinon faut aussi tout changer
             # dans utils.
             if ( d >= start ):
                 data.append([S, E, A, SP, H, C, F, R, dHIndt, dFIndt, dSPIndt, DTESTEDDT, DTESTEDPOSDT])
@@ -407,7 +426,7 @@ class SEIR_HCD(Model):
         return np.array(data)
 
     def model(self, state, parameters):
-        # ATTENTION! Ajouter l'équation pour alpha si on veut l'utiliser
+        # ATTENTION! Ajouter l'Ã©quation pour alpha si on veut l'utiliser
         S, E, A, SP, H, C, F, R = state
         N = self._population
         gamma1 = parameters['Gamma1']
