@@ -197,7 +197,7 @@ class Model:
         if not(stocha):
             self._errorFct = errorFct
 
-    def fit_parameters(self, method, errorFct, randomPick):
+    def fit_parameters(self, method, randomPick):
         # Call this method to perform a parameters
         # fit.
 
