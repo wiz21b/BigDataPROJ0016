@@ -6,10 +6,12 @@ import math
 from lmfit import Parameters
 from scipy.optimize import minimize as scipy_minimize
 
-from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, residual_sum_of_squares
+from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, residual_sum_of_squares, periods_in_days
 
 import matplotlib.pyplot as plt
 from scipy.stats import binom
+
+from datetime import date
 
 random.seed(1001)
 np.random.seed(1001)
@@ -91,7 +93,7 @@ class SEIR_HCD(Model):
           pour trouver un premier jeu correct
         - Fera un fit sur end - start days sur les données entre le jour 'start'
           et le jour 'end'
-        - parmas permets de définir le valeur initiale des paramètres lors du fit.
+        - params permets de définir le valeur initiale des paramètres lors du fit.
     """
     def fit_parameters(self, data = None, optimizer = 'LBFGSB',  
                        randomPick = False, 
@@ -148,7 +150,7 @@ class SEIR_HCD(Model):
 
             print('Optimal parameters after the fitting:')
             for pName, p in parameters.items():
-                print("{:10s} [{:.2f} - {:.2f}] : {:.2f}".format(pName, p.min, p.max, 
+                print("{:10s} [{:.4f} - {:.4f}] : {:.4f}".format(pName, p.min, p.max,
                                                                  self._optimalParams[pName]))
         else:
             print("Other method to implement")
@@ -271,6 +273,8 @@ class SEIR_HCD(Model):
         # ----------------------------------
         bestParams = [beta_0, rho_0, sigma_0, tau_0, delta_0, theta_0, gamma1_0, gamma2_0,
                       gamma3_0, gamma4_0, mu_0, eta_0]
+        bestParams = dict(zip(self._paramNames, bestParams))
+
         if not(self._immunity):
             bestParams += [alpha_0]
 
@@ -309,6 +313,8 @@ class SEIR_HCD(Model):
 
             bestParams = dict(zip(self._paramNames, bestParams))
             print('Best preprocessing parameters: {}'.format(bestParams))
+        #else:
+
 
         gamma1_bounds = [gamma1_min, bestParams['Gamma1'], gamma1_max]
         gamma2_bounds = [gamma2_min, bestParams['Gamma2'], gamma2_max]
@@ -505,13 +511,13 @@ if __name__ == "__main__":
 
     ms = SEIR_HCD()
 
-    N = 11000000
-    E0 = 3000
-    A0 = 2000
-    SP0 = 500
+    N = 11492641 # population belge en 2020
+    E0 = 30000
+    A0 = 15000
+    SP0 = 8000
     H0 = rows[10][ObsEnum.NUM_HOSPITALIZED.value]
     C0 = rows[10][ObsEnum.NUM_CRITICAL.value]
-    R0 = 100
+    R0 = 0#100
     F0 = rows[10][ObsEnum.NUM_FATALITIES.value]
     S0 = N - E0 - A0 - SP0 - H0 - C0 - R0 - F0
 
@@ -519,10 +525,17 @@ if __name__ == "__main__":
 
     ms.set_IC(conditions = IC)
 
-    ms.fit_parameters(data = rows, randomPick = True, picks = 100, start = 0,
-                      end = 50)
+    dates = [observations.DATE.iloc[0].date(), date(2020, 3, 13), date(2020, 5, 4), date(2020, 6, 8),
+             date(2020, 7, 25), date(2020, 9, 24), date(2020, 10, 6), date(2020, 11, 2),
+             date(2020, 12, 1), date(2021, 1, 27), date(2021, 3, 1), date(2021, 3, 27),
+             observations.DATE.iloc[-1].date()]
+    # list of tuples (start, end) for each period with significantly distinctive covid-19 measures
+    periods_in_days = periods_in_days(dates)
 
-    sres = ms.predict(end = 50)
+    ms.fit_parameters(data = rows, randomPick = True, picks = 1000, start = periods_in_days[0][0],
+                      end = periods_in_days[0][1])
+
+    sres = ms.predict(start = periods_in_days[0][0], end = periods_in_days[0][1])
 
     version = 3
 

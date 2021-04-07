@@ -10,7 +10,7 @@ import numpy as np
 import csv
 from collections import namedtuple
 import urllib.request
-
+from datetime import date
 import os
 import datetime
 import tempfile
@@ -385,8 +385,6 @@ def load_model_data():
     DAILY_HOSP = HOSP.groupby("DATE", as_index = False).sum()
     DAILY_DEATHS = MORT.groupby("DATE", as_index = False).sum()
 
-    print(DAILY_TESTS)
-
     # Selection and renaming of dataframes columns
     DAILY_TESTS1 = pd.concat([DAILY_TESTS.DATE,
                              DAILY_TESTS.TESTS_ALL_POS.rename("NUM_POSITIVE"),
@@ -417,3 +415,29 @@ def load_model_data():
                 [DAILY_TESTS1, DAILY_HOSP1, DAILY_DEATHS1, DAILY_TESTS2, DAILY_HOSP2, DAILY_DEATHS2]).fillna(0)
 
     return df
+
+"""
+Compute the number of days between 2 date objects
+"""
+def days_between_dates(date1, date2):
+    return (date2 - date1).days
+
+"""
+Compute the periods in number of days between all adjacent dates of a list
+
+Argument:
+dates, a list of days
+
+Return:
+a list of tuples (start, end) describing each period delimited from the start^th day to the end^th day.
+A period is computed for each pair of adjacent dates from the given list of dates
+"""
+def periods_in_days(dates):
+    periods_in_days = []
+    current_day = 0
+    for i in range(len(dates) - 1):
+        elapsed_days = days_between_dates(dates[i], dates[i+1])
+        periods_in_days.append((current_day, current_day + elapsed_days))
+        current_day += elapsed_days + 1
+
+    return periods_in_days
