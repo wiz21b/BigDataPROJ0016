@@ -390,8 +390,10 @@ class SEIR_HCD(Model):
             return -sum(lhs.values())
         
         else:
-            """ A faire !"""
-            return
+            res = self.predict(end = days, parameters = params) # CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC
+            residuals = res[self._fittingPeriod[0]:self._fittingPeriod[1],StateEnum.HOSPITALIZED.value] - self._data[self._fittingPeriod[0]:self._fittingPeriod[1],ObsEnum.NUM_HOSPITALIZED.value]
+            least_squares = np.sum(residuals*residuals)
+            return least_squares
 
     """ - Va simuler 'end' days mais ne retournera que ceux après 'start'
         - Si on ne fournit pas 'parameters' on utilise les paramètres trouvés
@@ -517,7 +519,7 @@ if __name__ == "__main__":
     periods_in_days = periods_in_days(dates)
     periods_in_days = periods_in_days[1:] # we start fitting from the 2nd period to start with higher values
 
-    ms = SEIR_HCD()
+    ms = SEIR_HCD(stocha = False)
 
     N = 11492641 # population belge en 2020
     E0 = 80000
