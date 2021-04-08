@@ -117,7 +117,7 @@ class SEIR_HCD(Model):
         else:
             self._fittingPeriod = [start, end]
             
-        print("fitting period: {}".format(self._fittingPeriod))
+        #print("fitting period: {}".format(self._fittingPeriod))
         
 
         # L-BFGS-B accepts bounds
@@ -128,7 +128,7 @@ class SEIR_HCD(Model):
         bounds = np.array([(p.min, p.max) for pName, p in parameters.items()])
 
         # Group parameters
-        print('Parameters\' bounds:')
+        print('Parameter bounds:')
         for pName, p in parameters.items():
             print("{:10s} [{:.2f} - {:.2f}]".format(pName, p.min, p.max))
 
@@ -508,34 +508,42 @@ if __name__ == "__main__":
     observations = load_model_data()
     rows = np.array(observations)
     days = len(rows)
-
-    ms = SEIR_HCD()
-
-    N = 11492641 # population belge en 2020
-    E0 = 30000
-    A0 = 15000
-    SP0 = 8000
-    H0 = rows[10][ObsEnum.NUM_HOSPITALIZED.value]
-    C0 = rows[10][ObsEnum.NUM_CRITICAL.value]
-    R0 = 0#100
-    F0 = rows[10][ObsEnum.NUM_FATALITIES.value]
-    S0 = N - E0 - A0 - SP0 - H0 - C0 - R0 - F0
-
-    IC = [S0, E0, A0, SP0, H0, C0, F0, R0]
-
-    ms.set_IC(conditions = IC)
-
     dates = [observations.DATE.iloc[0].date(), date(2020, 3, 13), date(2020, 5, 4), date(2020, 6, 8),
              date(2020, 7, 25), date(2020, 9, 24), date(2020, 10, 6), date(2020, 11, 2),
              date(2020, 12, 1), date(2021, 1, 27), date(2021, 3, 1), date(2021, 3, 27),
              observations.DATE.iloc[-1].date()]
     # list of tuples (start, end) for each period with significantly distinctive covid-19 measures
     periods_in_days = periods_in_days(dates)
+    periods_in_days = periods_in_days[1:] # we start fitting from the 2nd period to start with higher values
 
-    ms.fit_parameters(data = rows, randomPick = True, picks = 1000, start = periods_in_days[0][0],
-                      end = periods_in_days[0][1])
+    ms = SEIR_HCD()
 
-    sres = ms.predict(start = periods_in_days[0][0], end = periods_in_days[0][1])
+    N = 11492641 # population belge en 2020
+    E0 = 75000
+    A0 = 13500
+    SP0 = 9000
+    H0 = rows[periods_in_days[0][0]][ObsEnum.NUM_HOSPITALIZED.value]
+    C0 = rows[periods_in_days[0][0]][ObsEnum.NUM_CRITICAL.value]
+    R0 = np.sum(rows[:periods_in_days[0][0], ObsEnum.RSURVIVOR.value]) # = 0
+    F0 = rows[periods_in_days[0][0]][ObsEnum.NUM_FATALITIES.value]
+    S0 = N - E0 - A0 - SP0 - H0 - C0 - R0 - F0
+
+    IC = [S0, E0, A0, SP0, H0, C0, F0, R0]
+    print(IC)
+    ms.set_IC(conditions = IC)
+    
+    sres = np.array([])
+    for period in periods_in_days:
+        print(f"Period: [{period[0]}, {period[1]}]")
+        ms.fit_parameters(data = rows[period[0]:period[1], :], randomPick = False, picks = 1000)
+
+        sres_temp = ms.predict()
+        if sres_temp.any():
+            ms.set_IC(conditions = sres_temp[-1, 0:8])
+            if not np.any(sres):
+                sres = sres_temp
+            else:
+                sres = np.concatenate((sres, sres_temp))
 
     version = 3
 
