@@ -518,6 +518,7 @@ if __name__ == "__main__":
     # list of tuples (start, end) for each period with significantly distinctive covid-19 measures
     periods_in_days = periods_in_days(dates)
     periods_in_days = periods_in_days[1:] # we start fitting from the 2nd period to start with higher values
+    # solution 2, here start from 0. but use the 0 to compute the date so not cool... et marche moins bien que sol 1
 
     ms = SEIR_HCD(stocha = False)
 
@@ -544,7 +545,9 @@ if __name__ == "__main__":
         if sres_temp.any():
             ms.set_IC(conditions = sres_temp[-1, 0:8])
             if not np.any(sres):
-                sres = sres_temp
+                sres = sres_temp[:13,:] * 0 #solution 1, artificielement mettre des 0 pour les X premier jours, où plus propre, mettre IC 13 fois à voir.
+                sres = np.concatenate((sres, sres_temp)) # fait partie de solution 1
+                # sres = sres_temp
             else:
                 sres = np.concatenate((sres, sres_temp))
 
