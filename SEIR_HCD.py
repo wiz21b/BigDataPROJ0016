@@ -6,9 +6,10 @@ import math
 from lmfit import Parameters
 from scipy.optimize import minimize as scipy_minimize
 
-from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, residual_sum_of_squares, periods_in_days
+from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, residual_sum_of_squares, periods_in_days, plot_periods
 
 import matplotlib.pyplot as plt
+
 from scipy.stats import binom
 
 from datetime import date
@@ -128,9 +129,9 @@ class SEIR_HCD(Model):
         bounds = np.array([(p.min, p.max) for pName, p in parameters.items()])
 
         # Group parameters
-        print('Parameter bounds:')
-        for pName, p in parameters.items():
-            print("{:10s} [{:.2f} - {:.2f}]".format(pName, p.min, p.max))
+        #print('Parameter bounds:')
+        #for pName, p in parameters.items():
+            #print("{:10s} [{:.2f} - {:.2f}]".format(pName, p.min, p.max))
 
         x0 = [p.value for p_name, p in parameters.items()]
         
@@ -519,9 +520,9 @@ if __name__ == "__main__":
     ms = SEIR_HCD()
 
     N = 11492641 # population belge en 2020
-    E0 = 75000
-    A0 = 13500
-    SP0 = 9000
+    E0 = 80000
+    A0 = 14544
+    SP0 = 9686
     H0 = rows[periods_in_days[0][0]][ObsEnum.NUM_HOSPITALIZED.value]
     C0 = rows[periods_in_days[0][0]][ObsEnum.NUM_CRITICAL.value]
     R0 = np.sum(rows[:periods_in_days[0][0], ObsEnum.RSURVIVOR.value]) # = 0
@@ -562,6 +563,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label = str(t) + " (model)")
     u = ObsEnum.NUM_HOSPITALIZED
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plot_periods(plt, dates)
     #plt.savefig('img/v{}-hospitalized.pdf'.format(version))
     plt.show()
 

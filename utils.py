@@ -14,6 +14,7 @@ from datetime import date
 import os
 import datetime
 import tempfile
+import matplotlib.dates as mdates
 from io import StringIO
 
 
@@ -437,7 +438,23 @@ def periods_in_days(dates):
     current_day = 0
     for i in range(len(dates) - 1):
         elapsed_days = days_between_dates(dates[i], dates[i+1])
-        periods_in_days.append((current_day, current_day + elapsed_days))
-        current_day += elapsed_days + 1
+        periods_in_days.append((current_day, current_day + elapsed_days - 1))
+        current_day += elapsed_days
 
     return periods_in_days
+
+"""
+Plot vertical dashed lines to visualize distinctive periods in a plot for a function of time
+
+Argument:
+plt, the matplotlib pyplot object to which we should add vertical lines
+dates, a list of dates delimiting periods
+"""
+def plot_periods(plt, dates):
+    periods = periods_in_days(dates)
+    plt.xticks([start for start, _ in periods], dates[:-1], fontsize = 9)
+    #ax = plt.gca()
+    #ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
+    plt.gcf().autofmt_xdate(rotation=50)
+    for start, _ in periods:
+        plt.axvline(start, color='black', linestyle='dashed', lw=0.3)
