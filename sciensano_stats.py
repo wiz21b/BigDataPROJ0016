@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from utils import load_sciensano_data
+from utils import load_sciensano_data, load_model_data
 
 USE_ROLLING_MEANS = True
 
@@ -50,4 +50,10 @@ if __name__ == "__main__":
 
     plt.title("Sciensano dataset")
     plt.legend()
+    plt.show()
+
+    df = load_model_data(True)
+    plt.plot(df['DATE'], df["NUM_POSITIVE"])
+    plt.plot(df['DATE'], df["NUM_HOSPITALIZED"])
+    plt.plot(df['DATE'], df["NUM_CRITICAL"])
     plt.show()
