@@ -56,9 +56,8 @@ class SEIR_HCD(Model):
             self._paramNames += ['Alpha']
 
     def set_IC(self, conditions):
-        if not(len(conditions) == len(self._compartmentNames)):
-            print("ERROR: Number of initial conditions given not matching with the model.")
-            return
+        assert len(conditions) == len(self._compartmentNames), \
+            "Number of initial conditions given not matching with the model."
 
         self._initialConditions = dict(zip(self._compartmentNames, conditions))
         self._currentState = dict(zip(self._compartmentNames, conditions))
@@ -70,9 +69,8 @@ class SEIR_HCD(Model):
     def set_param(self, parameters):
         requiredParameters = len(self._paramNames)
 
-        if not(len(parameters) == requiredParameters):
-            print("ERROR: Number of parameters given not matching with the model.")
-            return
+        assert len(parameters) == len(self._paramNames),\
+            "Number of parameters given not matching with the model."
 
         self._params = dict(zip(self._paramNames, parameters))
         self._paramInitialized = True
@@ -81,9 +79,8 @@ class SEIR_HCD(Model):
 
     # J'ai mis ça là mais je ne sais pas encore si je l'utiliserai
     def set_state(self, compartments):
-        if not(len(compartments) == len(self._compartmentNames)):
-            print("ERROR: Number of initial conditions given not matching with the model.")
-            return
+        assert len(compartments) == len(self._compartmentNames),\
+            "Number of initial conditions given not matching with the model."
 
         self._currentState = dict(zip(self._compartmentNames, compartments))
         return
@@ -103,9 +100,8 @@ class SEIR_HCD(Model):
                        end = None,
                        params = None):
 
-        if not(self._ICInitialized):
-            print('ERROR: Inital conditions not initialized.')
-            return
+        assert self._ICInitialized, 'ERROR: Inital conditions not initialized.'
+
         if isinstance(data, np.ndarray):
             self._data = data
             self._dataLength = data.shape[0]
@@ -122,7 +118,7 @@ class SEIR_HCD(Model):
 
 
         # L-BFGS-B accepts bounds
-        np.seterr(all = 'raise')
+        # np.seterr(all = 'raise')
 
         # Find first set of parameters
         parameters = self.get_initial_parameters(randomPick = randomPick, picks = picks)
@@ -354,6 +350,10 @@ class SEIR_HCD(Model):
         res = self.predict(end = days, parameters = params)
 
         if self._stochastic:
+            # Stochastic : on fait plusieurs experimentations
+            # et chaque expérimentation a un peu de random dedans.
+
+            # et on prend la moyenne
             experiments = []  # dims : [experiment #][day][value]
 
             for i in range(self._nbExperiments):
@@ -362,6 +362,7 @@ class SEIR_HCD(Model):
             # print("... done running experiments")
 
             experiments = np.stack(experiments)
+
 
         if self._stochastic:
             lhs = dict()
@@ -407,7 +408,7 @@ class SEIR_HCD(Model):
             if self._fitted:
                 params = self._optimalParams
             else:
-                print('ERROR: Finding optimal parameters is required!')
+                raise Exception('ERROR: Finding optimal parameters is required!')
                 return
         IC = [self._initialConditions[state] for state in self._compartmentNames]
         S, E, A, SP, H, C, F, R = IC
