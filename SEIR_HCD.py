@@ -51,7 +51,7 @@ class SEIR_HCD(Model):
                             'Gamma4',
                             'Mu',
                             'Eta']
-        
+
         if not(immunity):
             self._paramNames += ['Alpha']
 
@@ -69,14 +69,14 @@ class SEIR_HCD(Model):
     # J'ai mis ça là mais je ne sais pas encore si je l'utiliserai
     def set_param(self, parameters):
         requiredParameters = len(self._paramNames)
-            
+
         if not(len(parameters) == requiredParameters):
             print("ERROR: Number of parameters given not matching with the model.")
             return
 
         self._params = dict(zip(self._paramNames, parameters))
         self._paramInitialized = True
-        
+
         return
 
     # J'ai mis ça là mais je ne sais pas encore si je l'utiliserai
@@ -96,8 +96,8 @@ class SEIR_HCD(Model):
           et le jour 'end'
         - params permets de définir le valeur initiale des paramètres lors du fit.
     """
-    def fit_parameters(self, data = None, optimizer = 'LBFGSB',  
-                       randomPick = False, 
+    def fit_parameters(self, data = None, optimizer = 'LBFGSB',
+                       randomPick = False,
                        picks = 1000,
                        start = 0,
                        end = None,
@@ -112,14 +112,14 @@ class SEIR_HCD(Model):
         else:
             print("ERROR: Data required")
             return
-        
+
         if not(end):
             self._fittingPeriod = [start, len(self._data)]
         else:
             self._fittingPeriod = [start, end]
-            
+
         #print("fitting period: {}".format(self._fittingPeriod))
-        
+
 
         # L-BFGS-B accepts bounds
         np.seterr(all = 'raise')
@@ -134,10 +134,10 @@ class SEIR_HCD(Model):
             #print("{:10s} [{:.2f} - {:.2f}]".format(pName, p.min, p.max))
 
         x0 = [p.value for p_name, p in parameters.items()]
-        
+
         if not(params == None):
             x0 = params
-            
+
         print("Initial guess for the parameters: {}".format(x0))
 
         if optimizer == 'LBFGSB':
@@ -262,7 +262,7 @@ class SEIR_HCD(Model):
         eta_0 = 0.07
 
         # ----------------------------------
-        # Alpha 
+        # Alpha
         #alpha_min = 0.001
         #alpha_max = 0.999
         #alpha_0 = 0.01
@@ -297,13 +297,13 @@ class SEIR_HCD(Model):
                 theta = random.uniform(theta_min, theta_max)
                 mu = random.uniform(mu_min, mu_max)
                 eta = random.uniform(eta_min, eta_max)
-                
-                paramValues = [beta, rho, sigma, tau, delta, theta, gamma1, gamma2, 
+
+                paramValues = [beta, rho, sigma, tau, delta, theta, gamma1, gamma2,
                                gamma3, gamma4, mu, eta]
                 if not(self._immunity):
                     alpha = random.uniform(alpha_min, alpha_max)
                     paramValues += [alpha]
-                
+
 
                 # Pas en dict ici car ça poserait un problème dans fit_parameters()
                 score = self.plumb(paramValues)
@@ -352,7 +352,7 @@ class SEIR_HCD(Model):
         params = dict(zip(self._paramNames, parameters))
 
         res = self.predict(end = days, parameters = params)
-        
+
         if self._stochastic:
             experiments = []  # dims : [experiment #][day][value]
 
@@ -362,7 +362,7 @@ class SEIR_HCD(Model):
             # print("... done running experiments")
 
             experiments = np.stack(experiments)
-        
+
         if self._stochastic:
             lhs = dict()
             for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT, params['Tau']),
@@ -375,7 +375,7 @@ class SEIR_HCD(Model):
                 for day in np.arange(0, days):
                     # Take all the values of experiments on a given day day_ndx
                     # for a given measurement (state.value)
-    
+
                     observation = max(1, self._data[day + self._fittingPeriod[0]][obs.value])
                     values = experiments[:, day, state.value]  # binomial
                     prediction = np.mean(values)
@@ -385,10 +385,10 @@ class SEIR_HCD(Model):
                     except FloatingPointError as exception:
                         log_bin = -999
                     log_likelihood += log_bin
-    
+
                 lhs[obs] = log_likelihood
             return -sum(lhs.values())
-        
+
         else:
             res = self.predict(end = days, parameters = params) # CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC
             residuals = res[self._fittingPeriod[0]:self._fittingPeriod[1],StateEnum.HOSPITALIZED.value] - self._data[self._fittingPeriod[0]:self._fittingPeriod[1],ObsEnum.NUM_HOSPITALIZED.value]
@@ -535,7 +535,7 @@ if __name__ == "__main__":
     IC = [S0, E0, A0, SP0, H0, C0, F0, R0]
     print(IC)
     ms.set_IC(conditions = IC)
-    
+
     sres = np.array([])
     for period in periods_in_days:
         print(f"Period: [{period[0]}, {period[1]}]")
