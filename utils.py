@@ -10,10 +10,11 @@ import numpy as np
 import csv
 from collections import namedtuple
 import urllib.request
-
+from datetime import date
 import os
 import datetime
 import tempfile
+import matplotlib.dates as mdates
 from io import StringIO
 
 
@@ -197,7 +198,7 @@ class Model:
         if not(stocha):
             self._errorFct = errorFct
 
-    def fit_parameters(self, method, errorFct, randomPick):
+    def fit_parameters(self, method, randomPick):
         # Call this method to perform a parameters
         # fit.
 
@@ -324,23 +325,18 @@ def _read_csv(url) -> pd.DataFrame:
     a factor of 10. The copy is refreshed every day.
     """
 
-    CACHE_PATH=".sciensano_cache"
-
-    if not os.path.exists(CACHE_PATH):
-        os.mkdir(CACHE_PATH)
-
     name = url.rsplit('/', 1)[-1]
-    # date = datetime.date.today().strftime("%Y%m%d")
+    date = datetime.date.today().strftime("%Y%m%d")
 
-    fname = f"cache_{name}"
-    fpath = os.path.join(CACHE_PATH, fname)
+    fname = f"cache_{date}_{name}"
+    fpath = os.path.join(tempfile.gettempdir(), fname)
 
     if os.path.exists(fpath):
-        print(f"Reading cached file {fpath}")
+        # print(f"Reading cached file {fpath}")
         with open(fpath, "rb") as fp:
             data = fp.read()
     else:
-        print(f"Downloading data from Sciensano {url}")
+        # print(f"Loading data from Sciensano {url}")
         with urllib.request.urlopen(url) as fp:
             data = fp.read()
 
@@ -381,7 +377,7 @@ def load_sciensano_data():
     return CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC
 
 
-def load_model_data(rolling_mean=False):
+def load_model_data():
     # Load sciensano's datasets
     CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC = load_sciensano_data()
 
@@ -390,43 +386,75 @@ def load_model_data(rolling_mean=False):
     DAILY_HOSP = HOSP.groupby("DATE", as_index = False).sum()
     DAILY_DEATHS = MORT.groupby("DATE", as_index = False).sum()
 
-    print(DAILY_TESTS)
-
     # Selection and renaming of dataframes columns
     DAILY_TESTS1 = pd.concat([DAILY_TESTS.DATE,
-                              DAILY_TESTS.TESTS_ALL_POS.rename("NUM_POSITIVE"),
-                              DAILY_TESTS.TESTS_ALL.rename("NUM_TESTED")], axis=1)
+                             DAILY_TESTS.TESTS_ALL_POS.rename("NUM_POSITIVE"),
+                             DAILY_TESTS.TESTS_ALL.rename("NUM_TESTED")], axis=1)
 
     DAILY_HOSP1 = pd.concat([DAILY_HOSP.DATE,
-                             (DAILY_HOSP.TOTAL_IN - DAILY_HOSP.TOTAL_IN_ICU).rename("NUM_HOSPITALIZED"),
-                             DAILY_HOSP.NEW_IN.cumsum().rename("CUMULATIVE_HOSPITALIZATIONS"),
-                             DAILY_HOSP.TOTAL_IN_ICU.rename("NUM_CRITICAL")], axis=1)
+                            (DAILY_HOSP.TOTAL_IN - DAILY_HOSP.TOTAL_IN_ICU).rename("NUM_HOSPITALIZED"),
+                            DAILY_HOSP.NEW_IN.cumsum().rename("CUMULATIVE_HOSPITALIZATIONS"),
+                            DAILY_HOSP.TOTAL_IN_ICU.rename("NUM_CRITICAL")], axis=1)
 
     DAILY_DEATHS1 = pd.concat([DAILY_DEATHS.DATE,
-                               DAILY_DEATHS.DEATHS.cumsum().rename("NUM_FATALITIES")], axis=1)
+                              DAILY_DEATHS.DEATHS.cumsum().rename("NUM_FATALITIES")], axis=1)
 
     DAILY_TESTS2 = pd.concat([DAILY_TESTS.DATE,
                               DAILY_TESTS.TESTS_ALL_POS.cumsum().rename("CUMULATIVE_TESTED_POSITIVE"),
                               DAILY_TESTS.TESTS_ALL.cumsum().rename("CUMULATIVE_TESTED")], axis=1)
 
     DAILY_HOSP2 = pd.concat([DAILY_HOSP.DATE,
-                             DAILY_HOSP.NEW_OUT.rename("RSURVIVOR"),
-                             DAILY_HOSP.NEW_IN.rename("DHDT")], axis=1)
+                            DAILY_HOSP.NEW_OUT.rename("RSURVIVOR"),
+                            DAILY_HOSP.NEW_IN.rename("DHDT")], axis=1)
 
     DAILY_DEATHS2 = pd.concat([DAILY_DEATHS.DATE,
-                               DAILY_DEATHS.DEATHS.rename("DFDT")], axis=1)
+                              DAILY_DEATHS.DEATHS.rename("DFDT")], axis=1)
 
 
     # Outer join of the dataframes on column 'DATE'
     df = reduce(lambda left, right: pd.merge(left, right, on=['DATE'], how='outer'),
-                [DAILY_TESTS1, DAILY_HOSP1, DAILY_DEATHS1, DAILY_TESTS2,
-                 DAILY_HOSP2, DAILY_DEATHS2]).fillna(0)
-
-    if rolling_mean:
-        print("Applying rolling means")
-        for col_name, win_len in [
-                ("NUM_POSITIVE", 14),
-                ("NUM_HOSPITALIZED", 5)]:
-            df[col_name] = df[col_name].rolling(win_len).mean()
+                [DAILY_TESTS1, DAILY_HOSP1, DAILY_DEATHS1, DAILY_TESTS2, DAILY_HOSP2, DAILY_DEATHS2]).fillna(0)
 
     return df
+
+"""
+Compute the number of days between 2 date objects
+"""
+def days_between_dates(date1, date2):
+    return (date2 - date1).days
+
+"""
+Compute the periods in number of days between all adjacent dates of a list
+
+Argument:
+dates, a list of days
+
+Return:
+a list of tuples (start, end) describing each period delimited from the start^th day to the end^th day.
+A period is computed for each pair of adjacent dates from the given list of dates
+"""
+def periods_in_days(dates):
+    periods_in_days = []
+    current_day = 0
+    for i in range(len(dates) - 1):
+        elapsed_days = days_between_dates(dates[i], dates[i+1])
+        periods_in_days.append((current_day, current_day + elapsed_days - 1))
+        current_day += elapsed_days
+
+    return periods_in_days
+
+"""
+Plot vertical dashed lines to visualize distinctive periods in a plot for a function of time
+
+Argument:
+plt, the matplotlib pyplot object to which we should add vertical lines
+dates, a list of dates delimiting periods
+"""
+def plot_periods(plt, dates):
+    periods = periods_in_days(dates)
+    plt.xticks([start for start, _ in periods], dates[:-1], fontsize = 9)
+    #ax = plt.gca()
+    #ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
+    plt.gcf().autofmt_xdate(rotation=50)
+    for start, _ in periods:
+        plt.axvline(start, color='black', linestyle='dashed', lw=0.3)
