@@ -404,14 +404,17 @@ def load_model_data():
                               DAILY_TESTS.TESTS_ALL.cumsum().rename("CUMULATIVE_TESTED")], axis=1)
 
     DAILY_HOSP2 = pd.concat([DAILY_HOSP.DATE,
-                            DAILY_HOSP.NEW_OUT.rename("RSURVIVOR"),
-                            DAILY_HOSP.NEW_IN.rename("DHDT")], axis=1)
+                             DAILY_HOSP.NEW_OUT.rename("RSURVIVOR"),
+                             # STC prefers but still need more test : (DAILY_HOSP.NEW_IN - DAILY_HOSP.NEW_OUT).rename("DHDT")], axis=1)
+                             DAILY_HOSP.NEW_IN.rename("DHDT")], axis=1)
 
     DAILY_DEATHS2 = pd.concat([DAILY_DEATHS.DATE,
                               DAILY_DEATHS.DEATHS.rename("DFDT")], axis=1)
 
 
     # Outer join of the dataframes on column 'DATE'
+    # Attention à bien respecter l'ordre de ObsEnum.
+
     df = reduce(lambda left, right: pd.merge(left, right, on=['DATE'], how='outer'),
                 [DAILY_TESTS1, DAILY_HOSP1, DAILY_DEATHS1, DAILY_TESTS2, DAILY_HOSP2, DAILY_DEATHS2]).fillna(0)
 
