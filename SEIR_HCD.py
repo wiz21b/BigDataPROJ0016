@@ -474,9 +474,9 @@ class SEIR_HCD(Model):
                 return
         IC = [self._initialConditions[state] for state in self._compartmentNames]
         S, E, A, SP, H, C, F, R = IC
-        data = [[S, E, A, SP, H, C, F, R, 0, 0, 0, 0, 0]]
+        data = []
 
-        for d in range(end - 1):
+        for d in range(end):
             ys = [S, E, A, SP, H, C, F, R]
 
             dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt, dFIndt, dSPIndt, DTESTEDDT, DTESTEDPOSDT = self.model(ys, params)
