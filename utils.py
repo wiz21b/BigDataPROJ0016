@@ -118,7 +118,7 @@ class ObsFitEnum(Enum):
     DHDT = ObsEnum.DHDT.value
     DFDT = ObsEnum.DFDT.value
     DSPDT = ObsEnum.NUM_POSITIVE.value
-    # RSURVIVOR =  ObsEnum.RSURVIVOR.value
+    #RSURVIVOR = ObsEnum.RSURVIVOR.value
 
     def __int__(self):
         return self.value
@@ -131,7 +131,7 @@ class StateFitEnum(Enum):
     DHDT = StateEnum.DHDT.value
     DFTD = StateEnum.DFDT.value
     DSPDT = StateEnum.DSPDT.value
-    # RSURVIVOR = StateEnum.RSURVIVOR.value
+    #RSURVIVOR = StateEnum.RSURVIVOR.value
 
     def __int__(self):
         return self.value
@@ -187,6 +187,7 @@ class Model:
         self._fitted = False
         self._initialConditions = {}
         self._currentState = {}
+        self._constantParamNames = {}
         self._params = {}
         self._optimalParams = {}
         self._population = 0
@@ -227,17 +228,18 @@ class Model:
             return 0
 
         # Part of the population that leaves on average
-        average = param * population
+        #average = param * population
 
         # Binomial centered on the population part
 
         # The rounding is important because binomial
         # is for integer number. By using a round we favor
-        # sometimes the high limit sometimes the loaw
+        # sometimes the high limit sometimes the low
         # limit => on average we center. I think np
         # will use "int" instead which always favour
         # the low limit => the distribution is skewed.
-        r = np.random.binomial(round(2 * average), 0.5)
+        #r = np.random.binomial(round(2 * average), 0.5)
+        r = np.random.binomial(population, param)
 
         return r
 
@@ -453,8 +455,6 @@ dates, a list of dates delimiting periods
 def plot_periods(plt, dates):
     periods = periods_in_days(dates)
     plt.xticks([start for start, _ in periods], dates[:-1], fontsize = 9)
-    #ax = plt.gca()
-    #ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
     plt.gcf().autofmt_xdate(rotation=50)
     for start, _ in periods:
         plt.axvline(start, color='black', linestyle='dashed', lw=0.3)

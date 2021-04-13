@@ -3,10 +3,10 @@ import random
 import numpy as np
 import math
 
-from lmfit import Parameters
 from scipy.optimize import minimize as scipy_minimize
+from scipy.optimize import differential_evolution
 
-from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, residual_sum_of_squares, periods_in_days, plot_periods
+from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, residual_sum_of_squares, periods_in_days, plot_periods, residuals_error
 
 import matplotlib.pyplot as plt
 
@@ -23,7 +23,7 @@ class SEIR_HCD(Model):
         'errorFct' à fournir si pas stochastique
         'nbExpériments' pour le fit
     """
-    def __init__ (self, stocha = True, immunity = True, errorFct = None, nbExperiments = 100):
+    def __init__ (self, stocha = True, immunity = True, errorFct = None, nbExperiments = 100, constantParamNames = {}):
         super().__init__(stocha = stocha, errorFct = errorFct, nbExperiments = nbExperiments)
         self._immunity = immunity # ne sert pas à l'instant xar posait un problème
                                   # si set à False car alors on avait un paramètre
@@ -51,6 +51,8 @@ class SEIR_HCD(Model):
                             'Gamma4',
                             'Mu',
                             'Eta']
+
+        self._constantParamNames = constantParamNames
 
         if not(immunity):
             self._paramNames += ['Alpha']
@@ -119,36 +121,52 @@ class SEIR_HCD(Model):
 
         # L-BFGS-B accepts bounds
         # np.seterr(all = 'raise')
-
+        nonConstantParamNames = [pName for pName in self._paramNames if pName not in self._constantParamNames]
         # Find first set of parameters
-        parameters = self.get_initial_parameters(randomPick = randomPick, picks = picks)
-        bounds = np.array([(p.min, p.max) for pName, p in parameters.items()])
-
-        # Group parameters
-        #print('Parameter bounds:')
-        #for pName, p in parameters.items():
-            #print("{:10s} [{:.2f} - {:.2f}]".format(pName, p.min, p.max))
-
-        x0 = [p.value for p_name, p in parameters.items()]
+        initialParams, bounds = self.get_initial_parameters(paramNames = nonConstantParamNames, randomPick = randomPick, picks = picks)
+        constantParams, _ = self.get_initial_parameters(paramNames = self._constantParamNames, randomPick = randomPick, picks = picks)
+        bounds = [bound for bound in bounds.values()]
 
         if not(params == None):
             x0 = params
+        else:
+            x0 = [p for p in initialParams.values()]
 
-        print("Initial guess for the parameters: {}".format(x0))
+        #print(f"Initial guess for the parameters:\n{x0}")
+        #for pName, (pMin, pMax) in zip(nonConstantParamNames, bounds):
+            #print("{:10s} [{:.4f} - {:.4f}] : {:.4f}".format(pName, pMin, pMax, initialParams[pName]))
 
         if optimizer == 'LBFGSB':
-            res = scipy_minimize(self.plumb,
-                                x0 = x0,
-                                method = 'L-BFGS-B',
-                                bounds = bounds)
+            print(constantParams)
+            res = differential_evolution(self.plumb,
+                                         bounds = bounds,
+                                         args = (constantParams, False),
+                                         popsize = 30,
+                                         mutation = (1, 1.9),
+                                         recombination = 0.3)
+            print('Status : %s' % res['message'])
+            print('Total Evaluations: %d' % res['nfev'])
+            solution = res['x']
+            print(f'Solution:\n{solution}')
 
-            self._optimalParams = dict(zip(self._paramNames, res.x))
+            res = scipy_minimize(self.plumb,
+                                 x0 = res.x, # x0,
+                                 args = (constantParams, True),
+                                 method = 'L-BFGS-B',
+                                 bounds = bounds)
+            print(res.x)
+            parameters = res.x
+            for paramName, i in zip(self._paramNames, range(len(parameters) + len(constantParams))):
+                if paramName in constantParams:
+                    parameters = np.insert(parameters, i, constantParams[paramName])
+            self._optimalParams = dict(zip(self._paramNames, parameters))
             self._fitted = True
 
             print('Optimal parameters after the fitting:')
-            for pName, p in parameters.items():
-                print("{:10s} [{:.4f} - {:.4f}] : {:.4f}".format(pName, p.min, p.max,
+            for pName, (pMin, pMax) in zip(nonConstantParamNames, bounds):
+                print("{:10s} [{:.4f} - {:.4f}] : {:.4f}".format(pName, pMin, pMax,
                                                                  self._optimalParams[pName]))
+            print([self._optimalParams[pName] for pName in self._paramNames])
         else:
             print("Other method to implement")
 
@@ -156,7 +174,7 @@ class SEIR_HCD(Model):
 
     """ Fonction à nettoyer ! """
 
-    def get_initial_parameters(self, randomPick = False, picks = 1000):
+    def get_initial_parameters(self, paramNames = None, randomPick = False, picks = 1000):
         min_incubation_time = 5
         max_incubation_time = 6
 
@@ -176,7 +194,7 @@ class SEIR_HCD(Model):
         avg_stay_in_hospital_simple_beds_in_case_of_recovery = 8
 
         # ----------------------------------
-        # Tau (SP -> H) # -> won't be constant over time
+        # Tau (SP -> H) # -> will probably not be constant over time
         avg_time_for_transfer_from_SP_to_H = 5.7
         tau_0 = 0.01 / avg_time_for_transfer_from_SP_to_H  # 1 symptomatic out of 100 goes to the hospital # blind hypothesis
         tau_min = 0.0001 / avg_time_for_transfer_from_SP_to_H  # 1 symptomatic out of 10000 goes to the hospital # blind hypothesis
@@ -202,7 +220,7 @@ class SEIR_HCD(Model):
 
         # ----------------------------------
         # Gamma3 (C -> R) # -> probably constant over time
-        gamma3_min = 0.1  # blind hypothesis
+        gamma3_min = 0.01  # blind hypothesis
         gamma3_0 = 0.05  # blind hypothesis
         gamma3_max = (1 - mortality_rate_in_ICU) / avg_stay_in_ICU_in_case_of_recovery
 
@@ -235,7 +253,7 @@ class SEIR_HCD(Model):
         # Theta (C -> F) # -> should vary with the influence of the British variant
         # Hypothesis: stay and mortality in simple hospital beds lower bounds the corresponding numbers in ICU
         theta_min = mortality_rate_in_simple_hospital_beds / avg_stay_in_ICU_in_case_of_death  # semi-blind hypothesis
-        theta_max = mortality_rate_in_ICU / avg_stay_in_simple_hospital_beds_in_case_of_death  # semi-blind hypothesis
+        theta_max = (mortality_rate_in_ICU + mortality_rate_in_simple_hospital_beds) / avg_stay_in_simple_hospital_beds_in_case_of_death  # semi-blind hypothesis
         theta_0 = mortality_rate_in_ICU / avg_stay_in_ICU_in_case_of_death
 
         # ----------------------------------
@@ -248,7 +266,7 @@ class SEIR_HCD(Model):
         # ----------------------------------
         # Mu (sigma * A -> T) # -> will vary over time with the test capacity and the testing rules
         mu_max = 0.9  # blind hypothesis
-        mu_min = 0.4  # blind hypothesis
+        mu_min = 0.4 #0.4  # blind hypothesis
         mu_0 = (mu_min + mu_max) / 2  # blind hypothesis
 
         # ----------------------------------
@@ -268,15 +286,37 @@ class SEIR_HCD(Model):
         #alpha_bounds = [0.001, 0.01, 0.95]
 
         # ----------------------------------
+        gamma1_bounds = (gamma1_min, gamma1_max)
+        gamma2_bounds = (gamma2_min, gamma2_max)
+        gamma3_bounds = (gamma3_min, gamma3_max)
+        gamma4_bounds = (gamma4_min, gamma4_max)
+        beta_bounds = (beta_min, beta_max)
+        tau_bounds = (tau_min, tau_max)
+        delta_bounds = (delta_min, delta_max)
+        sigma_bounds = (sigma_min, sigma_max)
+        rho_bounds = (rho_min, rho_max)
+        theta_bounds = (theta_min, theta_max)
+        mu_bounds = (mu_min, mu_max)
+        eta_bounds = (eta_min, eta_max)
+
+        bounds = [beta_bounds, rho_bounds, sigma_bounds, tau_bounds, delta_bounds,
+                  theta_bounds, gamma1_bounds, gamma2_bounds, gamma3_bounds,
+                  gamma4_bounds, mu_bounds, eta_bounds]
+
+        if not (self._immunity):
+            # alpha_bounds = [alpha_min, bestParams['Alpha'], alpha_max]
+            alpha_bounds = (alpha_min, alpha_max)
+            bounds += [alpha_bounds]
+
+
         bestParams = [beta_0, rho_0, sigma_0, tau_0, delta_0, theta_0, gamma1_0, gamma2_0,
                       gamma3_0, gamma4_0, mu_0, eta_0]
-        bestParams = dict(zip(self._paramNames, bestParams))
 
         if not(self._immunity):
             bestParams += [alpha_0]
 
         if randomPick:
-            best = 0
+            best = float("inf")
             for test in range(picks):
                 if (test % (picks/10) == 0):
                     print("Pre test of the parameters: {} of {}".format(test, picks))
@@ -302,52 +342,67 @@ class SEIR_HCD(Model):
 
 
                 # Pas en dict ici car ça poserait un problème dans fit_parameters()
-                score = self.plumb(paramValues)
-                if score > best:
+                score = self.plumb(paramValues, isMLE = False)
+                if score < best:
                     best = score
                     print("Score preprocessing parameters: {}".format(score))
                     bestParams = paramValues
 
-            bestParams = dict(zip(self._paramNames, bestParams))
-            print('Best preprocessing parameters: {}'.format(bestParams))
-        #else:
+            print('Best preprocessing parameters: {}'.format(dict(zip(self._paramNames, bestParams))))
+        bestParams = dict(zip(self._paramNames, bestParams))
+        bounds = dict(zip(self._paramNames, bounds))
+        bestParams = dict((k, bestParams[k]) for k in paramNames)
+        bounds = dict((k, bounds[k]) for k in paramNames)
+        return bestParams, bounds
+
+    """
+    constantParams is a dictionary (key = paramName, value = paramValue) of parameters that should not be altered
+    (used for fitting while keeping some parameters constant across multiple periods)
+    """
+    def plumb(self, parameters, constantParams = [], isMLE = True):
+        for paramName, i in zip(self._paramNames, range(len(parameters) + len(constantParams))):
+            if paramName in constantParams:
+                parameters = np.insert(parameters, i, constantParams[paramName])
+        if isMLE:
+            return self._plumb_mle(parameters)
+        else:
+            return self._plumb_deterministic(parameters)
 
 
-        gamma1_bounds = [gamma1_min, bestParams['Gamma1'], gamma1_max]
-        gamma2_bounds = [gamma2_min, bestParams['Gamma2'], gamma2_max]
-        gamma3_bounds = [gamma3_min, bestParams['Gamma3'], gamma3_max]
-        gamma4_bounds = [gamma4_min, bestParams['Gamma4'], gamma4_max]
-        beta_bounds = [beta_min, bestParams['Beta'], beta_max]
-        tau_bounds = [tau_min, bestParams['Tau'], tau_max]
-        delta_bounds = [delta_min, bestParams['Delta'], delta_max]
-        sigma_bounds = [sigma_min, bestParams['Sigma'], sigma_max]
-        rho_bounds = [rho_min, bestParams['Rho'], rho_max]
-        theta_bounds = [theta_min, bestParams['Theta'], theta_max]
-        mu_bounds = [mu_min, bestParams['Mu'], mu_max]
-        eta_bounds = [eta_min, bestParams['Eta'], eta_max]
-
-        bounds = [beta_bounds, rho_bounds, sigma_bounds, tau_bounds, delta_bounds,
-                    theta_bounds, gamma1_bounds, gamma2_bounds, gamma3_bounds,
-                    gamma4_bounds, mu_bounds, eta_bounds]
-
-        if not(self._immunity):
-            alpha_bounds = [alpha_min, bestParams['Alpha'], alpha_max]
-            bounds += [alpha_bounds]
-
-        params = Parameters()
-
-        for name, bound in zip(self._paramNames, bounds):
-            params.add(name, value = bound[1], min = bound[0], max = bound[2])
-
-        return params
-
-    """Partie déterminieste à faire"""
-    def plumb(self, parameters):
-        # TO DO: Partie déterministe!
+    def _plumb_deterministic(self, parameters):
         days = self._fittingPeriod[1]-self._fittingPeriod[0]
         params = dict(zip(self._paramNames, parameters))
 
         res = self.predict(end = days, parameters = params)
+
+        fittingSelect = [ObsEnum.DHDT.value,
+                         ObsEnum.NUM_TESTED.value,
+                         ObsEnum.NUM_POSITIVE.value,
+                         ObsEnum.DFDT.value]
+        fittingObservations = self._data[self._fittingPeriod[0]:self._fittingPeriod[1], fittingSelect]
+        #fittingObservations = np.concatenate((fittingObservations, self._data[self._fittingPeriod[0]:self._fittingPeriod[1], [ObsEnum.NUM_HOSPITALIZED.value, ObsEnum.NUM_CRITICAL.value]]), axis=1)
+        rselect = [StateEnum.SYMPTOMATIQUE.value,
+                   StateEnum.DSPDT.value,
+                   StateEnum.DTESTEDDT.value,
+                   StateEnum.CRITICAL.value]
+        statesToFit = np.array([params['Tau'], params['Mu'], params['Eta'], params['Theta']]) * res[:,rselect]#np.array([params['Tau'], params['Mu'], params['Eta']]) * res[:,rselect]
+        # statesToFit = np.concatenate((statesToFit, res[:, [StateEnum.HOSPITALIZED.value, StateEnum.CRITICAL.value]]), axis=1)
+        # fittingObservations = self._data[self._fittingPeriod[0]:self._fittingPeriod[1], [#ObsEnum.NUM_TESTED.value,
+        #                                                                                  #ObsEnum.NUM_POSITIVE.value,
+        #                                                                                  ObsEnum.NUM_HOSPITALIZED.value,
+        #                                                                                  ObsEnum.NUM_CRITICAL.value]]#,
+        #                                                                                  #ObsEnum.DFDT.value]]
+        # statesToFit = res[:, [#StateEnum.DTESTEDDT.value,
+        #                       #StateEnum.DTESTEDPOSDT.value,
+        #                       StateEnum.HOSPITALIZED.value,
+        #                       StateEnum.CRITICAL.value]]#,
+        #                       #StateEnum.DFDT.value]]
+        return np.sum(np.abs(residuals_error(statesToFit, fittingObservations)))
+
+
+    def _plumb_mle(self, parameters):
+        days = self._fittingPeriod[1]-self._fittingPeriod[0]
+        params = dict(zip(self._paramNames, parameters))
 
         if self._stochastic:
             # Stochastic : on fait plusieurs experimentations
@@ -363,38 +418,45 @@ class SEIR_HCD(Model):
 
             experiments = np.stack(experiments)
 
+        else:
+            res = self.predict(end = days, parameters = params)
 
-        if self._stochastic:
-            lhs = dict()
-            for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT, params['Tau']),
-                                      (StateEnum.DSPDT, ObsEnum.NUM_TESTED, params['Mu']),
-                                      (StateEnum.DTESTEDDT, ObsEnum.NUM_POSITIVE, params['Eta'])]:
-                # donc 1) depuis le nombre predit de personne SymPtomatique et le parametre tau, je regarde si l'observations dhdt est probable
-                #      2) depuis le nombre predit de personne Critical et le parametre theta, je regarde si l'observations dfdt est probable
-                #      3) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt) avec le parmetre de test(mu), je regarde si l'observation num_tested est probable
-                log_likelihood = 0
-                for day in np.arange(0, days):
-                    # Take all the values of experiments on a given day day_ndx
-                    # for a given measurement (state.value)
 
-                    observation = max(1, self._data[day + self._fittingPeriod[0]][obs.value])
+        #if self._stochastic:
+        lhs = dict()
+        for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT, params['Tau']),
+                                  (StateEnum.DSPDT, ObsEnum.NUM_TESTED, params['Mu']),
+                                  (StateEnum.DTESTEDDT, ObsEnum.NUM_POSITIVE, params['Eta']), #]:
+                                  (StateEnum.CRITICAL, ObsEnum.DFDT, params['Theta'])]:
+            # donc 1) depuis le nombre predit de personne SymPtomatique et le parametre tau, je regarde si l'observations dhdt est probable
+            #      2) depuis le nombre predit de personne Critical et le parametre theta, je regarde si l'observations dfdt est probable
+            #      3) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt) avec le parmetre de test(mu), je regarde si l'observation num_tested est probable
+            log_likelihood = 0
+            for day in np.arange(0, days):
+                # Take all the values of experiments on a given day day_ndx
+                # for a given measurement (state.value)
+
+                observation = max(1, self._data[day + self._fittingPeriod[0]][obs.value])
+                prediction = None
+                if self._stochastic:
                     values = experiments[:, day, state.value]  # binomial
                     prediction = np.mean(values)
-                    try:
-                        x = binom.pmf(observation, np.ceil(np.mean(prediction)), param)
-                        log_bin = np.log(x)
-                    except FloatingPointError as exception:
-                        log_bin = -999
-                    log_likelihood += log_bin
+                else:
+                    prediction = res[day, state.value]
 
-                lhs[obs] = log_likelihood
-            return -sum(lhs.values())
+                try:
+                    log_bin = binom.logpmf(observation, np.round(np.mean(prediction)), param)
+                    if prediction == 0: #log_bin == float("-inf"):
+                        log_bin = 0
+                except FloatingPointError as exception:
+                    log_bin = -999
+                log_likelihood += log_bin
+                #if log_likelihood == float("-inf"):
+                    #print("Error likelihood")
 
-        else:
-            res = self.predict(end = days, parameters = params) # CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC
-            residuals = res[self._fittingPeriod[0]:self._fittingPeriod[1],StateEnum.HOSPITALIZED.value] - self._data[self._fittingPeriod[0]:self._fittingPeriod[1],ObsEnum.NUM_HOSPITALIZED.value]
-            least_squares = np.sum(residuals*residuals)
-            return least_squares
+            lhs[obs] = log_likelihood
+        return -sum(lhs.values())
+
 
     """ - Va simuler 'end' days mais ne retournera que ceux après 'start'
         - Si on ne fournit pas 'parameters' on utilise les paramètres trouvés
@@ -412,9 +474,9 @@ class SEIR_HCD(Model):
                 return
         IC = [self._initialConditions[state] for state in self._compartmentNames]
         S, E, A, SP, H, C, F, R = IC
-        data = []
+        data = [[S, E, A, SP, H, C, F, R, 0, 0, 0, 0, 0]]
 
-        for d in range(end):
+        for d in range(end - 1):
             ys = [S, E, A, SP, H, C, F, R]
 
             dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt, dFIndt, dSPIndt, DTESTEDDT, DTESTEDPOSDT = self.model(ys, params)
@@ -456,7 +518,7 @@ class SEIR_HCD(Model):
             alpha = parameters['Alpha']
 
         if self._stochastic:
-            betaS = self.population_leave(beta, S * (A + SP) / N)
+            betaS = self.population_leave(beta * (A + SP) / N, S)#(beta, S * (A + SP) / N)
             rhoE = self.population_leave(rho, E)
             sigmaA = self.population_leave(sigma, A)
             gamma4A = self.population_leave(gamma4, A)
@@ -521,12 +583,14 @@ if __name__ == "__main__":
     periods_in_days = periods_in_days[1:] # we start fitting from the 2nd period to start with higher values
     # solution 2, here start from 0. but use the 0 to compute the date so not cool... et marche moins bien que sol 1
 
-    ms = SEIR_HCD(stocha = False)
+    # Parameters to keep constant across periods
+    constantParamNames = ("Rho", "Sigma", "Gamma1", "Gamma2", "Gamma4")  # Must keep the same order of parameters !
+    ms = SEIR_HCD(stocha = False, constantParamNames = constantParamNames)
 
     N = 11492641 # population belge en 2020
-    E0 = 80000
-    A0 = 14544
-    SP0 = 9686
+    E0 = 500000
+    A0 = round(E0 * 0.181818)
+    SP0 = round(A0 * 0.666666)
     H0 = rows[periods_in_days[0][0]][ObsEnum.NUM_HOSPITALIZED.value]
     C0 = rows[periods_in_days[0][0]][ObsEnum.NUM_CRITICAL.value]
     R0 = np.sum(rows[:periods_in_days[0][0], ObsEnum.RSURVIVOR.value]) # = 0
@@ -538,30 +602,33 @@ if __name__ == "__main__":
     ms.set_IC(conditions = IC)
 
     sres = np.array([])
+    i = 0
     for period in periods_in_days:
-        print(f"Period: [{period[0]}, {period[1]}]")
-        ms.fit_parameters(data = rows[period[0]:period[1], :], randomPick = False, picks = 1000)
+        print(f"\n\nPeriod: [{period[0]}, {period[1]}]")
+        ms.fit_parameters(data = rows[period[0]:period[1], :], randomPick = False, picks = 10000)#,params = parameters[i])
 
         sres_temp = ms.predict()
         if sres_temp.any():
             ms.set_IC(conditions = sres_temp[-1, 0:8])
-            if not np.any(sres):
+            if not sres.any():
                 sres = sres_temp[:13,:] * 0 #solution 1, artificielement mettre des 0 pour les X premier jours, où plus propre, mettre IC 13 fois à voir.
                 sres = np.concatenate((sres, sres_temp)) # fait partie de solution 1
-                # sres = sres_temp
+                #sres = sres_temp
             else:
                 sres = np.concatenate((sres, sres_temp))
+        i += 1
 
     version = 3
 
-    """plt.figure()
+    plt.figure()
     plt.title('HOSPITALIZED / PER DAY fit')
     t = StateEnum.DHDT
     plt.plot(sres[:, t.value], label = str(t) + " (model)")
     u = ObsEnum.DHDT
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plot_periods(plt, dates)
     #plt.savefig('img/v{}-dhdt.pdf'.format(version))
-    plt.show()"""
+    plt.show()
 
     plt.figure()
     plt.title('Hospitalized')
@@ -573,12 +640,13 @@ if __name__ == "__main__":
     #plt.savefig('img/v{}-hospitalized.pdf'.format(version))
     plt.show()
 
-    """plt.figure()
+    plt.figure()
     plt.title('Critical')
     t = StateEnum.CRITICAL
     plt.plot(sres[:, t.value], label = str(t) + " (model)")
     u = ObsEnum.NUM_CRITICAL
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plot_periods(plt, dates)
     #plt.savefig('img/v{}-critical.pdf'.format(version))
     plt.show()
 
@@ -588,6 +656,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label = str(t) + " (model)")
     u = ObsEnum.NUM_FATALITIES
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plot_periods(plt, dates)
     #plt.savefig('img/v{}-FATALITIES.pdf'.format(version))
     plt.show()
 
@@ -597,6 +666,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label = str(t) + " (model)")
     u = ObsEnum.DFDT
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plot_periods(plt, dates)
     #plt.savefig('img/v{}-dftf.pdf'.format(version))
     plt.show()
 
@@ -606,6 +676,7 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label = str(t) + " (model)")
     u = ObsEnum.NUM_TESTED
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plot_periods(plt, dates)
     #plt.savefig('img/v{}-dtesteddt.pdf'.format(version))
     plt.show()
 
@@ -615,5 +686,6 @@ if __name__ == "__main__":
     plt.plot(sres[:, t.value], label = str(t) + " (model)")
     u = ObsEnum.NUM_POSITIVE
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plot_periods(plt, dates)
     #plt.savefig('img/v{}-dtestedposdt.pdf'.format(version))
-    plt.show()"""
+    plt.show()
