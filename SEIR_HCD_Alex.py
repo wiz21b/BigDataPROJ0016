@@ -10,7 +10,7 @@ from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_mode
 
 import matplotlib.pyplot as plt
 
-from scipy.stats import binom
+from scipy.stats import binom, lognorm, norm
 
 from datetime import date
 
@@ -139,7 +139,7 @@ class SEIR_HCD(Model):
             #print("{:10s} [{:.4f} - {:.4f}] : {:.4f}".format(pName, pMin, pMax, initialParams[pName]))
 
         if optimizer == 'LBFGSB':
-            print(constantParams)
+            #print(constantParams)
             res = differential_evolution(self.plumb,
                                          bounds = bounds,
                                          args = (constantParams, False),
@@ -266,7 +266,7 @@ class SEIR_HCD(Model):
 
         delta_0 = (1 - mortality_rate_in_ICU) * fraction_of_hospitalized_transfering_to_ICU_in_case_of_eventual_recovery + \
                   mortality_rate_in_ICU * fraction_of_hospitalized_transfering_to_ICU_in_case_of_eventual_death
-        delta_max = 8 * fraction_of_hospitalized_transfering_to_ICU_in_case_of_eventual_recovery
+        delta_max = 1.5 * fraction_of_hospitalized_transfering_to_ICU_in_case_of_eventual_recovery
         # hypothesis: all people eventually recover after they transfer to ICU, they have thus on average a shorter stay in ICU, and thus a higher delta
         delta_min = fraction_of_hospitalized_transfering_to_ICU_in_case_of_eventual_death
         # hypothesis: all people eventually die after they transfer to ICU, they have thus on average a longer stay in ICU, and thus a lower delta
@@ -292,14 +292,14 @@ class SEIR_HCD(Model):
 
         # ----------------------------------
         # Gamma2 (H -> R) # -> probably constant over time
-        gamma2_min = 0.01  # blind hypothesis
+        gamma2_min = 0.001  # blind hypothesis
         gamma2_0 = (1 - mortality_rate_in_simple_hospital_beds) * fraction_of_hospitalized_not_transfering_to_ICU_in_case_of_eventual_recovery
         # (1 - mortality_rate_in_simple_hospital_beds) / avg_stay_in_hospital_simple_beds_in_case_of_recovery
         gamma2_max = fraction_of_hospitalized_not_transfering_to_ICU_in_case_of_eventual_recovery  # blind hypothesis
 
         # ----------------------------------
         # Gamma3 (C -> R) # -> probably constant over time
-        gamma3_min = 0.01  # blind hypothesis
+        gamma3_min = 0.001  # blind hypothesis
         gamma3_0 = (1 - mortality_rate_in_ICU) / avg_stay_in_ICU_in_case_of_recovery
         gamma3_max = 1 / avg_stay_in_ICU_in_case_of_recovery  # blind hypothesis: everyone eventually recover in ICU
 
@@ -443,13 +443,19 @@ class SEIR_HCD(Model):
                          ObsEnum.NUM_POSITIVE.value]#,
                          #ObsEnum.DFDT.value]
         fittingObservations = self._data[self._fittingPeriod[0]:self._fittingPeriod[1], fittingSelect]
-        #fittingObservations = np.concatenate((fittingObservations, self._data[self._fittingPeriod[0]:self._fittingPeriod[1], [ObsEnum.NUM_HOSPITALIZED.value, ObsEnum.NUM_CRITICAL.value]]), axis=1)
+        fittingObservations = np.concatenate((fittingObservations, self._data[self._fittingPeriod[0]:self._fittingPeriod[1], [ObsEnum.NUM_HOSPITALIZED.value,
+                                                                                                                              ObsEnum.NUM_CRITICAL.value,
+                                                                                                                              ObsEnum.NUM_FATALITIES.value#,
+                                                                                                                              #ObsEnum.RSURVIVOR.value
+                                                                                                                              ]]), axis=1)
         rselect = [StateEnum.SYMPTOMATIQUE.value,
                    #StateEnum.DSPDT.value,
                    StateEnum.DTESTEDDT.value]#,
                    #StateEnum.CRITICAL.value]
         statesToFit = np.array([params['Tau'], params['Eta']]) * res[:,rselect]#np.array([params['Tau'], params['Mu'], params['Eta']]) * res[:,rselect]#np.array([params['Tau'], params['Mu'], params['Eta'], params['Theta']]) * res[:,rselect]
-        # statesToFit = np.concatenate((statesToFit, res[:, [StateEnum.HOSPITALIZED.value, StateEnum.CRITICAL.value]]), axis=1)
+        statesToFit = np.concatenate((statesToFit, res[:, [StateEnum.HOSPITALIZED.value,
+                                                           StateEnum.CRITICAL.value,
+                                                           StateEnum.FATALITIES.value]]), axis=1)
         # fittingObservations = self._data[self._fittingPeriod[0]:self._fittingPeriod[1], [#ObsEnum.NUM_TESTED.value,
         #                                                                                  #ObsEnum.NUM_POSITIVE.value,
         #                                                                                  ObsEnum.NUM_HOSPITALIZED.value,
@@ -487,13 +493,42 @@ class SEIR_HCD(Model):
 
         #if self._stochastic:
         lhs = dict()
-        for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT, params['Tau']),
-                                  #(StateEnum.DSPDT, ObsEnum.NUM_TESTED, params['Mu']),
-                                  (StateEnum.DTESTEDDT, ObsEnum.NUM_POSITIVE, params['Eta'])]:#, #]:
-                                  #(StateEnum.CRITICAL, ObsEnum.DFDT, params['Theta2'])]:
-            # donc 1) depuis le nombre predit de personne SymPtomatique et le parametre tau, je regarde si l'observations dhdt est probable
-            #      2) depuis le nombre predit de personne Critical et le parametre theta, je regarde si l'observations dfdt est probable
-            #      3) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt) avec le parmetre de test(mu), je regarde si l'observation num_tested est probable
+        # for state, obs, param in [(StateEnum.SYMPTOMATIQUE, ObsEnum.DHDT, params['Tau']),
+        #                           #(StateEnum.DSPDT, ObsEnum.NUM_TESTED, params['Mu']),
+        #                           (StateEnum.DTESTEDDT, ObsEnum.NUM_POSITIVE, params['Eta'])]:#, #]:
+        #                           #(StateEnum.CRITICAL, ObsEnum.DFDT, params['Theta2'])]:
+        #     # donc 1) depuis le nombre predit de personne SymPtomatique et le parametre tau, je regarde si l'observations dhdt est probable
+        #     #      2) depuis le nombre predit de personne Critical et le parametre theta, je regarde si l'observations dfdt est probable
+        #     #      3) sur la transition entre Asymptomatique et Symptomatique ( sigma*A -> dSPdt) avec le parmetre de test(mu), je regarde si l'observation num_tested est probable
+        #     log_likelihood = 0
+        #     for day in np.arange(0, days):
+        #         # Take all the values of experiments on a given day day_ndx
+        #         # for a given measurement (state.value)
+        #
+        #         observation = max(1, self._data[day + self._fittingPeriod[0]][obs.value])
+        #         prediction = None
+        #         if self._stochastic:
+        #             values = experiments[:, day, state.value]  # binomial
+        #             prediction = np.mean(values)
+        #         else:
+        #             prediction = res[day, state.value]
+        #
+        #         try:
+        #             log_bin = binom.logpmf(observation, np.round(np.mean(prediction)), param)
+        #             if prediction == 0:
+        #                 log_bin = 0
+        #         except FloatingPointError as exception:
+        #             log_bin = -999
+        #         log_likelihood += log_bin
+        #         #if log_likelihood == float("-inf"):
+        #             #print("Error likelihood")
+        #
+        #     lhs[str(obs) + "Transition"] = log_likelihood
+
+        std = 5
+        for state, obs, param in [(StateEnum.HOSPITALIZED, ObsEnum.NUM_HOSPITALIZED, std),
+                                  (StateEnum.CRITICAL, ObsEnum.NUM_CRITICAL, std),
+                                  (StateEnum.FATALITIES, ObsEnum.NUM_FATALITIES, std)]:
             log_likelihood = 0
             for day in np.arange(0, days):
                 # Take all the values of experiments on a given day day_ndx
@@ -508,16 +543,17 @@ class SEIR_HCD(Model):
                     prediction = res[day, state.value]
 
                 try:
-                    log_bin = binom.logpmf(observation, np.round(np.mean(prediction)), param)
+                    log_bin = norm.logpdf(observation, np.round(prediction), param)
                     if prediction == 0:
                         log_bin = 0
                 except FloatingPointError as exception:
                     log_bin = -999
                 log_likelihood += log_bin
-                #if log_likelihood == float("-inf"):
-                    #print("Error likelihood")
+                # if log_likelihood == float("-inf"):
+                # print("Error likelihood")
 
-            lhs[obs] = log_likelihood
+            lhs[str(obs) + "State"] = log_likelihood
+
         return -sum(lhs.values())
 
 
@@ -667,6 +703,19 @@ if __name__ == "__main__":
     print(IC)
     ms.set_IC(conditions = IC)
 
+    # Optimal parameters from the global optimization
+    parameters = [[0.05207787586829836, 0.19437643151889256, 0.25882927627499613, 0.002598930041432537, 0.03287024477593973, 0.04453632115704963, 0.043164074052456904, 0.1012552267256648, 0.012232171157036167, 0.07820882346067388, 0.01591714941492931, 0.03179822629884987, 0.531371856470449, 0.015795676481463492],
+                  [0.042580445381067644, 0.19855726567799162, 0.4160429190779611, 0.0014213257760221382, 0.015004650714616805, 0.010992118275774239, 0.014521267537479501, 0.09955268056579478, 0.07396785198328328, 0.10101010101010101, 0.010625, 0.3646120976917083, 0.14478147893555207, 0.04061366407215736],
+                  [0.15489359314892692, 0.18842828490946634, 0.27351583233288335, 0.0005304404741883941, 0.01804032705080283, 0.022654575127180242, 0.056932759623164894, 0.1769189494535064, 0.0313662292228856, 0.06941526824193904, 0.017247297627200866, 0.0037748375541183563, 0.817361352961781, 0.0129267433464979],
+                  [0.1302201137419986, 0.17755726657210547, 0.6452869088901922, 0.0006761670439700634, 0.03457114169047097, 0.016998128521748868, 0.016990837067024485, 0.10535878251828285, 0.08008654051490204, 0.08880191590653053, 0.039236209396366545, 0.028186310961590917, 0.3790734495464846, 0.042489654998359105],
+                  [0.22884833859280537, 0.16794027185841648, 0.36436077798529637, 0.0015018622965502658, 0.027635021632397682, 0.007041235713902612, 0.013804766090680381, 0.18220199882811536, 0.06254748499679383, 0.024252572041956404, 0.029851547463444157, 0.29225764826733935, 0.10797517346264168, 0.19028304618871492],
+                  [0.252336663645288, 0.19580355524875773, 0.7742179955434318, 0.0018474995266605462, 0.025013656626227596, 0.016631096606959443, 0.03902398034656313, 0.1282046572066014, 0.01746797515679178, 0.017429378077307312, 0.012902413194730896, 0.09323596052848715, 0.2505751132062415, 0.2491891240582348],
+                  [0.07858372777031208, 0.19609851995692568, 0.5907115116342876, 0.0017427170957019802, 0.027722191094874723, 0.03012208375367326, 0.02944972556743967, 0.1458556750166045, 0.053334889850102006, 0.08196548271216583, 0.03835589765898502, 0.6934051801205784, 0.10794887224360744, 0.086763243385961],
+                  [0.12179702394444493, 0.18121097803108674, 0.5140083656251496, 0.0018889409174304298, 0.018681256821450592, 0.030271122089632136, 0.02340742464661904, 0.10503129400465595, 0.041062325499932155, 0.06970215949440424, 0.023954015461603785, 0.0526663626622299, 0.7602502846573451, 0.04065411298455111],
+                  [0.21226316977814352, 0.16666666666666666, 0.3618362784437883, 0.0029726865683662364, 0.01741996833307565, 0.02385226158250797, 0.00841424915269018, 0.17625219269362408, 0.05692536968340551, 0.06874471212926578, 0.025020895630079566, 0.21052404200055003, 0.7329949242046176, 0.06963102651115033],
+                  [0.3336891078922028, 0.1712618586688713, 0.6500714506322569, 0.002073418868413918, 0.0347500642968689, 0.012875059419537503, 0.007598149933121957, 0.17877458774699986, 0.04166568929935376, 0.0750847602273164, 0.016382630314136816, 0.43909544509965875, 0.8547447143925153, 0.056584642589059916],
+                  [0.2544145137878209, 0.17123596088107365, 0.7535795905274528, 0.002486910877983372, 0.03271485568319763, 0.009054672869941872, 0.022431677032460125, 0.1978573017254884, 0.08550130432592656, 0.043689364771055436, 0.03919024387743541, 0.29973127456274046, 0.8737001639818918, 0.04422319081715245]]
+
     sres = np.array([])
     i = 0
     for period in periods_in_days:
@@ -685,7 +734,7 @@ if __name__ == "__main__":
                 sres = np.concatenate((sres, sres_temp))
         i += 1
 
-    info = "WithA->T_SP->T_WithoutConstantParams_FitT->TP_SP->H_2"
+    info = "WithA->T_SP->T_WithoutConstantParams_FitT->TP_SP->H_5"
 
     plt.figure()
     plt.title('HOSPITALIZED / PER DAY fit')
