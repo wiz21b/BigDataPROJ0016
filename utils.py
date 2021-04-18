@@ -368,7 +368,7 @@ def load_sciensano_data():
     start_time = datetime.datetime.now()
     _csvs = [_read_csv(url) for url in _SCIENSANO_URLS]
     end_time = datetime.datetime.now()
-    print(f"Loaded data in {(end_time - start_time).total_seconds():.2f} sec.")
+    #print(f"Loaded data in {(end_time - start_time).total_seconds():.2f} sec.")
 
     CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC = _csvs
     # Fixing data entries equal to "<5"
@@ -388,30 +388,33 @@ def load_model_data():
     DAILY_HOSP = HOSP.groupby("DATE", as_index = False).sum()
     DAILY_DEATHS = MORT.groupby("DATE", as_index = False).sum()
 
+    fraction_hospitalized_per_day_added = 0.00112927
+    fraction_rsurvivor_added = 0.00114305
+
     # Selection and renaming of dataframes columns
     DAILY_TESTS1 = pd.concat([DAILY_TESTS.DATE,
-                             DAILY_TESTS.TESTS_ALL_POS.rename("NUM_POSITIVE"),
-                             DAILY_TESTS.TESTS_ALL.rename("NUM_TESTED")], axis=1)
+                              DAILY_TESTS.TESTS_ALL_POS.rename("NUM_POSITIVE"),
+                              DAILY_TESTS.TESTS_ALL.rename("NUM_TESTED")], axis=1)
 
     DAILY_HOSP1 = pd.concat([DAILY_HOSP.DATE,
-                            (DAILY_HOSP.TOTAL_IN - DAILY_HOSP.TOTAL_IN_ICU).rename("NUM_HOSPITALIZED"),
-                            DAILY_HOSP.NEW_IN.cumsum().rename("CUMULATIVE_HOSPITALIZATIONS"),
-                            DAILY_HOSP.TOTAL_IN_ICU.rename("NUM_CRITICAL")], axis=1)
+                             (DAILY_HOSP.TOTAL_IN - DAILY_HOSP.TOTAL_IN_ICU).rename("NUM_HOSPITALIZED"),
+                             (DAILY_HOSP.NEW_IN * (1 + fraction_hospitalized_per_day_added)).cumsum().rename("CUMULATIVE_HOSPITALIZATIONS"),
+                             DAILY_HOSP.TOTAL_IN_ICU.rename("NUM_CRITICAL")], axis=1)
 
     DAILY_DEATHS1 = pd.concat([DAILY_DEATHS.DATE,
-                              DAILY_DEATHS.DEATHS.cumsum().rename("NUM_FATALITIES")], axis=1)
+                               DAILY_DEATHS.DEATHS.cumsum().rename("NUM_FATALITIES")], axis=1)
 
     DAILY_TESTS2 = pd.concat([DAILY_TESTS.DATE,
                               DAILY_TESTS.TESTS_ALL_POS.cumsum().rename("CUMULATIVE_TESTED_POSITIVE"),
                               DAILY_TESTS.TESTS_ALL.cumsum().rename("CUMULATIVE_TESTED")], axis=1)
 
     DAILY_HOSP2 = pd.concat([DAILY_HOSP.DATE,
-                             DAILY_HOSP.NEW_OUT.rename("RSURVIVOR"),
+                             (DAILY_HOSP.NEW_OUT * (1 + fraction_rsurvivor_added)).rename("RSURVIVOR"),
                              # STC prefers but still need more test : (DAILY_HOSP.NEW_IN - DAILY_HOSP.NEW_OUT).rename("DHDT")], axis=1)
-                             DAILY_HOSP.NEW_IN.rename("DHDT")], axis=1)
+                             (DAILY_HOSP.NEW_IN * (1 + fraction_hospitalized_per_day_added)).rename("DHDT")], axis=1)
 
     DAILY_DEATHS2 = pd.concat([DAILY_DEATHS.DATE,
-                              DAILY_DEATHS.DEATHS.rename("DFDT")], axis=1)
+                               DAILY_DEATHS.DEATHS.rename("DFDT")], axis=1)
 
 
     # Outer join of the dataframes on column 'DATE'
