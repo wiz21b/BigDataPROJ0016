@@ -56,6 +56,12 @@ class ObsEnum(Enum):
     DHDT = 10
     DFDT = 11
 
+    # Vaccination
+    # Cumulative number of people at least partially vaccinated
+    VACCINATED_ONCE = 12
+    # Cumulative number of people fully vaccinated
+    VACCINATED_TWICE = 13
+
     # Other data not in the dataset
     # RECOVERED = 10
     # SUSPECT = 12
@@ -360,7 +366,7 @@ def _read_csv(url) -> pd.DataFrame:
                       parse_dates=parse_dates)
 
     # csv.info()
-    # print(csv)
+    #print(csv)
     return csv
 
 
@@ -387,6 +393,7 @@ def load_model_data():
     DAILY_TESTS = TESTS.groupby("DATE", as_index = False).sum()
     DAILY_HOSP = HOSP.groupby("DATE", as_index = False).sum()
     DAILY_DEATHS = MORT.groupby("DATE", as_index = False).sum()
+    DAILY_VACCINES = VACC.groupby(["DATE", "DOSE"], as_index = False).sum()
 
     fraction_hospitalized_per_day_added = 0.00112927
     fraction_rsurvivor_added = 0.00114305
@@ -416,14 +423,68 @@ def load_model_data():
     DAILY_DEATHS2 = pd.concat([DAILY_DEATHS.DATE,
                                DAILY_DEATHS.DEATHS.rename("DFDT")], axis=1)
 
+    DAILY_VACCINES1 = DAILY_VACCINES.loc[DAILY_VACCINES["DOSE"] == 'A', ["DATE", "COUNT"]]
+    DAILY_VACCINES1["COUNT"] = DAILY_VACCINES1.COUNT.cumsum()
+    DAILY_VACCINES1 = DAILY_VACCINES1.rename(columns = {"COUNT": "VACCINATED_ONCE"})
+    DAILY_VACCINES2 = DAILY_VACCINES.loc[DAILY_VACCINES["DOSE"] == 'B', ["DATE", "COUNT"]]
+    DAILY_VACCINES2["COUNT"] = DAILY_VACCINES2.COUNT.cumsum()
+    DAILY_VACCINES2 = DAILY_VACCINES2.rename(columns = {"COUNT": "VACCINATED_TWICE"})
 
     # Outer join of the dataframes on column 'DATE'
     # Attention à bien respecter l'ordre de ObsEnum.
-
     df = reduce(lambda left, right: pd.merge(left, right, on=['DATE'], how='outer'),
-                [DAILY_TESTS1, DAILY_HOSP1, DAILY_DEATHS1, DAILY_TESTS2, DAILY_HOSP2, DAILY_DEATHS2]).fillna(0)
+                [DAILY_TESTS1, DAILY_HOSP1, DAILY_DEATHS1, DAILY_TESTS2, DAILY_HOSP2, DAILY_DEATHS2, DAILY_VACCINES1, DAILY_VACCINES2]).fillna(0)
 
     return df
+
+"""
+Load the vaccination data and compute the forecast of number of doses adminisitered
+
+Argument:
+one_dose_vaccination_forecasts, a dictionary of (date, cumulative number of doses administered) for the first dose of vaccine
+one_dose_vaccination_forecasts, a dictionary of (date, cumulative number of doses administered) for the second dose of vaccine
+
+Return:
+a pandas dataframe with - the dates since the beginning of sciensano's reporting
+                        - the cumulative number of people at least partially vaccinated
+                        - the cumulative number of people fully vaccinated
+"""
+def load_vaccination_data(one_dose_vaccination_forecasts, two_dose_vaccination_forecasts):
+    CASES_MUNI_CUM, CASES_AGESEX, CASES_MUNI, HOSP, MORT, TESTS, VACC = load_sciensano_data()
+    DATES = pd.DataFrame({"DATE": TESTS.DATE.unique()})
+    DAILY_VACCINES = VACC.groupby(["DATE", "DOSE"], as_index = False).sum()
+    DAILY_VACCINES1 = DAILY_VACCINES.loc[DAILY_VACCINES["DOSE"] == 'A', ["DATE", "COUNT"]]
+    DAILY_VACCINES1["COUNT"] = DAILY_VACCINES1.COUNT.cumsum()
+    DAILY_VACCINES1 = DAILY_VACCINES1.rename(columns = {"COUNT": "VACCINATED_ONCE"})
+    DAILY_VACCINES2 = DAILY_VACCINES.loc[DAILY_VACCINES["DOSE"] == 'B', ["DATE", "COUNT"]]
+    DAILY_VACCINES2["COUNT"] = DAILY_VACCINES2.COUNT.cumsum()
+    DAILY_VACCINES2 = DAILY_VACCINES2.rename(columns = {"COUNT": "VACCINATED_TWICE"})
+
+    # ---- Linear forecasts of the vaccination ----
+    n_prev_vaccines = DAILY_VACCINES1.VACCINATED_ONCE.iloc[-1]
+    prev_date = DAILY_VACCINES1.DATE.iloc[-1].date()
+    for date, n_vaccines in one_dose_vaccination_forecasts.items():
+        forecasted_n_vaccines = np.linspace(n_prev_vaccines, n_vaccines, (date - prev_date).days, dtype=int)
+        dates = pd.date_range(prev_date, date, freq='d')[1:]
+        linear_vaccination_forecasts = pd.DataFrame(data={"DATE":dates, "VACCINATED_ONCE":forecasted_n_vaccines})
+        DAILY_VACCINES1 = DAILY_VACCINES1.append(linear_vaccination_forecasts)
+        prev_date = dates[-1].date()
+        n_prev_vaccines = forecasted_n_vaccines[-1]
+
+    n_prev_vaccines = DAILY_VACCINES2.VACCINATED_TWICE.iloc[-1]
+    prev_date = DAILY_VACCINES2.DATE.iloc[-1].date()
+    for date, n_vaccines in two_dose_vaccination_forecasts.items():
+        forecasted_n_vaccines = np.linspace(n_prev_vaccines, n_vaccines, (date - prev_date).days, dtype = int)
+        dates = pd.date_range(prev_date, date, freq = 'd')[1:]
+        linear_vaccination_forecasts = pd.DataFrame(data = {"DATE": dates, "VACCINATED_TWICE": forecasted_n_vaccines})
+        DAILY_VACCINES2 = DAILY_VACCINES2.append(linear_vaccination_forecasts)
+        prev_date = dates[-1].date()
+        n_prev_vaccines = forecasted_n_vaccines[-1]
+
+    df = reduce(lambda left, right: pd.merge(left, right, on = ['DATE'], how = 'outer'),
+                [DATES, DAILY_VACCINES1, DAILY_VACCINES2]).fillna(method='ffill').fillna(0)
+    return df
+
 
 """
 Compute the number of days between 2 date objects
@@ -460,7 +521,8 @@ dates, a list of dates delimiting periods
 """
 def plot_periods(plt, dates):
     periods = periods_in_days(dates)
-    plt.xticks([start for start, _ in periods], dates[:-1], fontsize = 9)
+    plt.xticks([start for start, _ in periods] + [periods[-1][-1]], dates, fontsize = 9)
     plt.gcf().autofmt_xdate(rotation=50)
     for start, _ in periods:
         plt.axvline(start, color='black', linestyle='dashed', lw=0.3)
+    plt.axvline(periods[-1][-1], color = 'black', linestyle = 'dashed', lw = 0.3)
