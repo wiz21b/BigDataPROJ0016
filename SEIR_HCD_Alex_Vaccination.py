@@ -2,6 +2,7 @@
 import random
 import numpy as np
 import math
+import argparse
 
 from scipy.optimize import minimize as scipy_minimize
 from scipy.optimize import differential_evolution
@@ -58,6 +59,14 @@ class SEIR_HCD(Model):
         self._constantParams = constantParams
         if not(immunity):
             self._paramNames += ['Alpha']
+
+        self._param_recorder = []
+
+    def dump_recorded_params(self, fname):
+        import pickle
+        with open(fname,"wb") as f:
+            pickle.dump(self._param_recorder, f)
+        self._param_recorder = []
 
     def set_vaccination(self, vaccination_data, one_dose_efficacy = 0, two_dose_efficacy = 0):
         self.vaccinated_once = vaccination_data["VACCINATED_ONCE"].to_numpy()
@@ -430,10 +439,13 @@ class SEIR_HCD(Model):
             if paramName in constantParams:
                 parameters = np.insert(parameters, i, constantParams[paramName])
         if isMLE:
-            return self._plumb_mle(parameters)
+            cost = self._plumb_mle(parameters)
         else:
-            return self._plumb_deterministic(parameters)
+            cost = self._plumb_deterministic(parameters)
 
+        self._param_recorder.append(list(parameters) + list(constantParams.values()) + [cost])
+
+        return cost
 
     def _plumb_deterministic(self, parameters):
         days = self._fittingPeriod[1]-self._fittingPeriod[0]
@@ -658,10 +670,11 @@ class SEIR_HCD(Model):
             if not(self._immunity):
                 alphaR = alpha * R
 
-            beta1 = beta * (1 - vaccinated_once / (N - F))
-            beta2 = beta * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
-            beta3 = beta * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
-            beta = beta1 + beta2 + beta3
+            beta_not_vaccinated = beta * (1 - vaccinated_once / (N - F))
+            beta_vaccinated_only_once = beta * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
+            beta_vaccinated_twice = beta * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
+            beta = beta_not_vaccinated + beta_vaccinated_only_once + beta_vaccinated_twice
+
             dSdt = -beta * S * (A + SP) / N + alphaR
             dEdt = beta * S * (A + SP) / N - rho * E
             dAdt = rho * E - sigma * A - gamma4 * A
@@ -678,6 +691,59 @@ class SEIR_HCD(Model):
             DTESTEDPOSDT = eta * DTESTEDDT
 
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt, dFIndt, dSPIndt, DTESTEDDT, DTESTEDPOSDT]
+
+
+
+def stability(model, initial_conditions, parameters, stab_type, fraction):
+
+    fig, axarr = plt.subplots(3, 3)
+    for v_ndx, t in enumerate(list(StateEnum)[:8]):
+
+        print(t)
+        all_preds = []
+        for i in range(300):
+            if stab_type == 1:
+                rparams = parameters
+                # Randomize initial condition
+                ric = np.array(initial_conditions)
+                ric *= 1+fraction*(np.random.rand(ric.shape[0]) - 0.5)/0.5
+
+                ric = ric.tolist()
+
+                S0, E0, A0, SP0, H0, C0, F0, R0 = ric
+                S0 = N - E0 - A0 - SP0 - H0 - C0 - R0 - F0
+                ric = [S0, E0, A0, SP0, H0, C0, F0, R0]
+
+            elif stab_type == 2:
+                ric = initial_conditions
+                # Randomize parameters
+                rparams = np.array(parameters)
+                rparams *= 1+fraction*(np.random.rand(rparams.shape[0]) - 0.5)/0.5
+                rparams = rparams.tolist()
+            else:
+                raise Exception("Unsupported")
+
+            ms.set_IC(ric)
+            sres_temp = model.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, rparams)))
+            all_preds.append(sres_temp[:,t.value])
+
+        #plt.figure()
+        #plt.title(str(t))
+        axarr.flat[v_ndx].title.set_text(str(t))
+
+        for pred in all_preds:#all_preds.shape[0]):
+            axarr.flat[v_ndx].plot(pred, c="black", alpha=0.01)
+
+        sres_temp = model.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, rparams)))
+        axarr.flat[v_ndx].set_ylim(bottom=0) # Must be set after plot
+        axarr.flat[v_ndx].plot(sres_temp[:,t.value], c="red")
+
+    axarr.flat[8].axis('off')
+
+    if stab_type == 1:
+        fig.suptitle(f"Stability of initial conditions, k={fraction:.1f}")
+    else:
+        fig.suptitle(f"Stability of parameters, k={fraction:.1f}")
 
 
 if __name__ == "__main__":
@@ -702,6 +768,15 @@ if __name__ == "__main__":
     last_date_for_prediction = date(2021, 7, 1) # date when the prediction should stop
                                                 # (pay attention to set one_dose_vaccination_forecasts
                                                 # and two_dose_vaccination_forcasts accordingly)
+
+    args_parser = argparse.ArgumentParser()
+    args_parser.add_argument('--stability', help='Stability analysis',
+                             action='store_true', required=False, default=False)
+    args_parser.add_argument('--record-optim', help="Record optimiser's work to given path",
+                             required=False, default=None, type=str)
+    args = args_parser.parse_args()
+
+
 
     # --- Loading data ----
     observations = load_model_data()
@@ -730,7 +805,6 @@ if __name__ == "__main__":
     S0 = N - E0 - A0 - SP0 - H0 - C0 - R0 - F0
 
     IC = [S0, E0, A0, SP0, H0, C0, F0, R0]
-    print(IC)
 
     # --- Optimal parameters from the global optimization ---
     parameters = [[0.04417909904136072, 0.16666666666666666, 0.25, 0.002607505957964171, 0.04506954288814314, 0.04000391524885744, 0.05945901639344263, 0.09824561403508772, 0.001, 0.09442629590963579, 0.010625, 0.008623746131208974, 0.5360234479440541, 0.017051185637991156],
@@ -817,8 +891,9 @@ if __name__ == "__main__":
 
     # --- Set and load vaccination information ---
     # Hypothesis: 400 000 vaccines administered per week until the 1st of May and 400 000 per week until the 1st of July
-    one_dose_vaccination_forecasts = {date(2021, 5, 1):2900000, last_date_for_prediction:4500000}
-    two_dose_vaccination_forecasts = {date(2021, 5, 1):900000, last_date_for_prediction:2900000}
+
+    one_dose_vaccination_forecasts = {date(2021, 6, 1):2900000, last_date_for_prediction:4500000}
+    two_dose_vaccination_forecasts = {date(2021, 6, 1):900000, last_date_for_prediction:2900000}
     one_dose_efficacy = 0
     two_dose_efficacy = 0
     if WITH_VACCINATION:
@@ -835,7 +910,7 @@ if __name__ == "__main__":
     sres = np.array([])
     i = 0
     save_params = []
-    for period in periods_in_days:
+    for period_ndx, period in enumerate(periods_in_days):
         print(f"\n\nPeriod: [{period[0]}, {period[1]}]")
         nonConstantParamNames = [pName for pName in ms._paramNames if pName not in constantParams]
         params = dict(zip(nonConstantParamNames, parameters[i] + ((np.random.random() * 2) - 1) * parameters[i] * PARAMS_NOISE))
@@ -847,6 +922,8 @@ if __name__ == "__main__":
         if EXECUTION == "GLOBAL_OPTIMISATION":
             optimal_params = ms.fit_parameters(data = rows[period[0]:period[1], :], params = params, is_global_optimisation = True, params_random_noise = PARAMS_NOISE) # parameters[i])
             save_params.append(list(optimal_params.values()))
+            if args.record_optim:
+                ms.dump_recorded_params(f"{args.record_optim}/opti_params{period_ndx}.pickle")
             sres_temp = ms.predict()
         elif EXECUTION == "LOCAL_OPTIMISATION":
             optimal_params = ms.fit_parameters(data = rows[period[0]:period[1], :], params = params)  # parameters[i])
@@ -873,14 +950,23 @@ if __name__ == "__main__":
     print(f"\n\nParameters used at each period:\n{save_params}")
 
     # --- Compute predictions ---
-    ms.set_IC(conditions = sres[-1, 0:8])
+    init_cond = sres[-1, 0:8]
+    ms.set_IC(conditions = init_cond)
     n_prediction_days = (last_date_for_prediction - dates[-1]).days
     start = periods_in_days[-1][-1] - vaccination_effect_delay
     end = start + n_prediction_days
     ms.set_vaccination(vaccination_data.iloc[start:end],
                        one_dose_efficacy, two_dose_efficacy)
     sres_temp = None
-    if EXECUTION == "GLOBAL_OPTIMISATION" or EXECUTION == "LOCAL_OPTIMISATION":
+    if args.stability:
+        print("S0, E0, A0, SP0, H0, C0, F0, R0")
+        print(init_cond)
+        stability(ms, init_cond, parameters[-1], 1, 0.1)
+        stability(ms, init_cond, parameters[-1], 2, 0.1)
+        plt.show()
+        exit()
+
+    elif EXECUTION == "GLOBAL_OPTIMISATION" or EXECUTION == "LOCAL_OPTIMISATION":
         sres_temp = ms.predict(end = n_prediction_days)
     else:
         sres_temp = ms.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, parameters[i - 1])))
