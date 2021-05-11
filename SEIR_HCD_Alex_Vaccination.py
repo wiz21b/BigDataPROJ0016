@@ -854,8 +854,20 @@ def graph_synthesis(parameters, periods_in_days, dates, rows):
 
 
 if __name__ == "__main__":
+
+    args_parser = argparse.ArgumentParser()
+    args_parser.add_argument('--stability', help='Stability analysis',
+                             action='store_true', required=False, default=False)
+    args_parser.add_argument('--minimum', help='Local minimum analysis 2',
+                             action='store_true', required=False, default=False)
+    args_parser.add_argument('--synth-graph', help='Draw synthesis graph',
+                             action='store_true', required=False, default=False)
+    args_parser.add_argument('--record-optim', help="Record optimiser's work to given path",
+                             required=False, default=None, type=str)
+    args = args_parser.parse_args()
+
     # --- Choice of execution ---
-    EXECUTION = "LOCAL_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
+    EXECUTION = "NO_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
     # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum absolute error,
     #                          followed by a local optimisation with the likelihood,
     #                          no use of initial parameters,
@@ -884,14 +896,6 @@ if __name__ == "__main__":
     GRAPH_PREFIX = EXECUTION + "_Vaccination_Hypothesis_" + str(VACCINATION_HYPOTHESIS) # prefix for naming the graph (should concisely describe the execution tested this time)
 
 
-    args_parser = argparse.ArgumentParser()
-    args_parser.add_argument('--stability', help='Stability analysis',
-                             action='store_true', required=False, default=False)
-    args_parser.add_argument('--minimum', help='Local minimum analysis 2',
-                             action='store_true', required=False, default=False)
-    args_parser.add_argument('--record-optim', help="Record optimiser's work to given path",
-                             required=False, default=None, type=str)
-    args = args_parser.parse_args()
 
 
 
@@ -939,7 +943,8 @@ if __name__ == "__main__":
     parameters = np.array(parameters)
 
 
-    graph_synthesis(parameters, periods_in_days, dates, rows)
+    if args.synth_graph:
+        graph_synthesis(parameters, periods_in_days, dates, rows)
 
 
     """
@@ -1024,7 +1029,7 @@ if __name__ == "__main__":
         two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
     elif VACCINATION_HYPOTHESIS != 0:
         raise ValueError(f'Unknown Vaccination Hypothesis #{VACCINATION_HYPOTHESIS}...')
-        
+
     one_dose_efficacy = 0
     two_dose_efficacy = 0
     if WITH_VACCINATION:
