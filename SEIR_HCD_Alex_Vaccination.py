@@ -874,7 +874,7 @@ if __name__ == "__main__":
     args = args_parser.parse_args()
 
     # --- Choice of execution ---
-    ALL_SCENARIOS = True#False#True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
+    ALL_SCENARIOS = False#False#True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
     EXECUTION = "LOCAL_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
     # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum absolute error,
     #                          followed by a local optimisation with the likelihood,
