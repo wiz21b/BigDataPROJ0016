@@ -940,11 +940,7 @@ if __name__ == "__main__":
         two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
     elif VACCINATION_HYPOTHESIS != 0:
         raise ValueError(f'Unknown Vaccination Hypothesis #{VACCINATION_HYPOTHESIS}...')
-
-    # Hypothesis: 400 000 vaccines administered per week until the 1st of May and 400 000 per week until the 1st of July
-
-    one_dose_vaccination_forecasts = {date(2021, 6, 1):2900000, LAST_DATE_FOR_PREDICTION:4500000}
-    two_dose_vaccination_forecasts = {date(2021, 6, 1):900000, LAST_DATE_FOR_PREDICTION:2900000}
+        
     one_dose_efficacy = 0
     two_dose_efficacy = 0
     if WITH_VACCINATION:
