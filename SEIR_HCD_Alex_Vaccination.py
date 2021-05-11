@@ -855,8 +855,8 @@ def graph_synthesis(parameters, periods_in_days, dates, rows):
 
 if __name__ == "__main__":
     # --- Choice of execution ---
-    EXECUTION = "NO_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
-    # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum aboslute error,
+    EXECUTION = "LOCAL_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
+    # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum absolute error,
     #                          followed by a local optimisation with the likelihood,
     #                          no use of initial parameters,
     #                          quite long
@@ -867,14 +867,22 @@ if __name__ == "__main__":
     #                          use of the initial parameters saved from a global optimisation,
     #                          very quick
     PARAMS_NOISE = 0#0.1 # percentage of random noise to apply to parameters (ideally used before starting a local optimisation) to prevent overfitting
-    WITH_VACCINATION = False#True # Whether we take the effects of vaccination into account
+    WITH_VACCINATION = True#True#False#True # Whether we take the effects of vaccination into account
     SAVE_GRAPH = True#True # whether the graphs should be saved
     IMAGE_FOLDER = "img/"  # folder in which graphs are saved
-    GRAPH_PREFIX = EXECUTION + "_NOISE=" + str(PARAMS_NOISE) + "WithoutVaccination"  # prefix for naming the graph (should concisely describe the execution tested this time)
     GRAPH_FORMAT = "png" # format in which the graph should be saved
     LAST_DATE_FOR_PREDICTION = date(2021, 7, 1) # date when the prediction should stop
                                                 # (pay attention to set one_dose_vaccination_forecasts
-                                                # and two_dose_vaccination_forcasts accordingly)
+                                                # and two_dose_vaccination_forecasts accordingly)
+    # Hypothesis 0: no vaccination
+    VACCINATION_HYPOTHESIS = 0
+    if WITH_VACCINATION:
+        # Hypothesis 1: 450 000 vaccines administered per week until the 1st of June and then 450 000 per week until the 1st of July
+        # Hypothesis 2: 450 000 vaccines administered per week until the 1st of June and then 550 000 per week until the 1st of July
+        # Hypothesis 3: 450 000 vaccines administered per week until the 1st of June and then 650 000 per week until the 1st of July
+        VACCINATION_HYPOTHESIS = 3#2 # 1, 2, 3
+    GRAPH_PREFIX = EXECUTION + "_Vaccination_Hypothesis_" + str(VACCINATION_HYPOTHESIS) # prefix for naming the graph (should concisely describe the execution tested this time)
+
 
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('--stability', help='Stability analysis',
@@ -1005,17 +1013,25 @@ if __name__ == "__main__":
     constantParams = {}
 
     # --- Set and load vaccination information ---
-    # Hypothesis: 400 000 vaccines administered per week until the 1st of May and 400 000 per week until the 1st of July
-
-    one_dose_vaccination_forecasts = {date(2021, 6, 1):2900000, LAST_DATE_FOR_PREDICTION:4500000}
-    two_dose_vaccination_forecasts = {date(2021, 6, 1):900000, LAST_DATE_FOR_PREDICTION:2900000}
+    if VACCINATION_HYPOTHESIS == 1:
+        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:5250000}
+        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
+    elif VACCINATION_HYPOTHESIS == 2:
+        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:5750000}
+        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
+    elif VACCINATION_HYPOTHESIS == 3:
+        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:6250000}
+        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
+    elif VACCINATION_HYPOTHESIS != 0:
+        raise ValueError(f'Unknown Vaccination Hypothesis #{VACCINATION_HYPOTHESIS}...')
+        
     one_dose_efficacy = 0
     two_dose_efficacy = 0
     if WITH_VACCINATION:
         one_dose_efficacy = 0.65
         two_dose_efficacy = 0.8
+        vaccination_data = load_vaccination_data(one_dose_vaccination_forecasts, two_dose_vaccination_forecasts)
     vaccination_effect_delay = 14 # hypothesis: 14 days before the vaccine takes effect
-    vaccination_data = load_vaccination_data(one_dose_vaccination_forecasts, two_dose_vaccination_forecasts)
 
     # --- Instantiation of the model ---
     ms = SEIR_HCD(stocha = False, constantParams = constantParams)
