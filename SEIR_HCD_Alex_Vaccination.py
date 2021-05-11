@@ -3,17 +3,17 @@ import random
 import numpy as np
 import math
 import argparse
+from datetime import date
 
 from scipy.optimize import minimize as scipy_minimize
 from scipy.optimize import differential_evolution
 
-from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, load_vaccination_data, residual_sum_of_squares, periods_in_days, plot_periods, residuals_error
+from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, load_vaccination_data, residual_sum_of_squares, periods_in_days, plot_periods, residuals_error, plot_periods_axis
 
 import matplotlib.pyplot as plt
 
 from scipy.stats import binom, lognorm, norm
 
-from datetime import date
 
 random.seed(1001)
 np.random.seed(1001)
@@ -458,11 +458,12 @@ class SEIR_HCD(Model):
                          ObsEnum.NUM_POSITIVE.value]#,
                          #ObsEnum.DFDT.value]
         fittingObservations = self._data[self._fittingPeriod[0]:self._fittingPeriod[1], fittingSelect]
-        fittingObservations = np.concatenate((fittingObservations, self._data[self._fittingPeriod[0]:self._fittingPeriod[1], [ObsEnum.NUM_HOSPITALIZED.value,
-                                                                                                                              ObsEnum.NUM_CRITICAL.value,
-                                                                                                                              ObsEnum.NUM_FATALITIES.value#,
-                                                                                                                              #ObsEnum.RSURVIVOR.value
-                                                                                                                              ]]), axis=1)
+        fittingObservations = np.concatenate((fittingObservations, self._data[self._fittingPeriod[0]:self._fittingPeriod[1],
+                                                                              [ObsEnum.NUM_HOSPITALIZED.value,
+                                                                               ObsEnum.NUM_CRITICAL.value,
+                                                                               ObsEnum.NUM_FATALITIES.value#,
+                                                                               #ObsEnum.RSURVIVOR.value
+                                                                               ]]), axis=1)
         rselect = [StateEnum.SYMPTOMATIQUE.value,
                    #StateEnum.DSPDT.value,
                    StateEnum.DTESTEDDT.value]#,
@@ -576,6 +577,10 @@ class SEIR_HCD(Model):
           par le fit.
     """
     def predict(self, start = 0, end = None, parameters = None):
+
+        # print("PREDICT", start, end, parameters)
+        # print("PREDICT IC", self._initialConditions)
+
         if not(end):
             end = len(self._data)
         params = parameters
@@ -693,33 +698,48 @@ class SEIR_HCD(Model):
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt, dFIndt, dSPIndt, DTESTEDDT, DTESTEDPOSDT]
 
 
-def stability2(model, data, initial_conditions, parameters, period, fraction):
-    # model.set_IC(initial_conditions)
+def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
+    from tqdm import tqdm
+
+    SAMPLES = 50
+    MLE = True # False = dterministic
+
+    model.set_IC(initial_conditions)
+    # Optimizer set to X to allow fit_paramteers to only initialize
+    # stuff, not actually do fitting.
+    model.fit_parameters(data = data,
+                         params = dict(zip(model._paramNames, parameters)),
+                         optimizer = 'X')
+
+    minimum = model.plumb(parameters, constantParams = dict(), isMLE=MLE)
 
     fig, axarr = plt.subplots(4, 4)
-    for p_ndx in range(len(parameters)):
+    for p_ndx in tqdm(range(len(parameters))): # len(parameters)
         params = [p for p in parameters]  # copy
 
         all_values = []
         all_preds = []
-        SAMPLES = 4
-        for i in range(SAMPLES):
+        new_min = minimum, parameters[p_ndx]
 
+        for i in range(SAMPLES):
             params[p_ndx] = parameters[p_ndx] * (1 + fraction*2*(i/SAMPLES - 0.5))
 
-            # Optimiser X to allow fit_paramteers to only initialize
-            # stuff, not actually do fitting.
+            cost = model.plumb(params, constantParams = dict(), isMLE=MLE)
+            if cost < new_min[0]:
+                new_min = cost, params[p_ndx]
 
-            model.fit_parameters(data = data,
-                                 params = dict(zip(model._paramNames, params)),
-                                 optimizer = 'X')
-            cost = model.plumb(params, constantParams = dict(), isMLE=True)
-            print(cost)
             all_preds.append(cost)
             all_values.append(params[p_ndx])
 
-        axarr.flat[p_ndx].plot(all_values, all_preds, c="black")
+        axarr.flat[p_ndx].set_xlim(parameters[p_ndx] * (1 + fraction*2*(0 - 0.5)),
+                                   parameters[p_ndx] * (1 + fraction*2*(1 - 0.5)))
+        axarr.flat[p_ndx].set_ylim(0, minimum*2)
         axarr.flat[p_ndx].title.set_text(model._paramNames[p_ndx])
+        axarr.flat[p_ndx].axvline(x=parameters[p_ndx])
+        #axarr.flat[p_ndx].axhline(y=minimum)
+        axarr.flat[p_ndx].plot(all_values, all_preds, c="black")
+        axarr.flat[p_ndx].axvline(x=new_min[1],label=f"{new_min[1]:.3f}",color="red")
+        axarr.flat[p_ndx].legend()
 
     plt.show()
 
@@ -775,6 +795,64 @@ def stability(model, initial_conditions, parameters, stab_type, fraction):
         fig.suptitle(f"Stability of parameters, k={fraction:.1f}")
 
 
+def graph_synthesis(parameters, periods_in_days, dates, rows):
+    P_NAMES = ["beta", "Rho (E -> A)", "Sigma (A -> SP)", "Tau (SP -> H)", 'Delta (H -> C)',
+               'Theta1 (H -> F)',
+               'Theta2 (C -> F)', 'Gamma1', 'Gamma2', 'Gamma3',
+               'Gamma4', 'Mu1', 'Mu2', 'Eta']
+
+    print(parameters.shape)
+
+
+
+    for i in range(len(periods_in_days)):
+        print(i, dates[i+1], periods_in_days[i])
+
+    period_starts = [(p[0] + p[1])//2 for p in periods_in_days]
+
+    fig, ax1 = plt.subplots()
+
+    """
+    https://fr.wikipedia.org/wiki/Pand%C3%A9mie_de_Covid-19_en_Belgique
+
+    14 mars 2020 : Fermeture des écoles, discothèques, cafés et restaurants et l'annulation de tous les rassemblements publics
+    18 mars 2020 : Confinement généralisé
+    4 mai 2020 : Déconfinement progressif
+    """
+    s = (date(2020,3,14) - dates[0]).days
+    e = (date(2020,5,4) - dates[0]).days
+    ax1.axvspan(s, e, color='red', alpha=0.5)
+
+    """
+    19 octobre 2020 : un couvre-feu est mis en place de minuit à 5 h du matin5 ; un couvre-feu de 1h à 6h était déjà appliqué dans les provinces du Brabant Wallon et du Luxembourg depuis respectivement les 13 et 14 octobre146. De plus, les bars et restaurants sont à nouveau fermés ; les contacts rapprochés sont limités à 1 personne maximum ; les rassemblements privés sont limités à quatre personnes pendant deux semaines, toujours les mêmes ; les rassemblements sur la voie publique sont limités à quatre personnes maximum ; le télétravail redevient la règle6.
+    2 novembre 2020 : nouveau confinement national
+    27 novembre 2020 : le Comité de concertation prolonge le confinement national jusqu'au 31 janvier 2021
+    """
+    s = (date(2020,10,19) - dates[0]).days
+    e = (date(2021,1,31) - dates[0]).days
+    ax1.axvspan(s, e, color='red', alpha=0.5)
+
+    plot_periods(plt, dates)
+
+    u = ObsEnum.NUM_HOSPITALIZED
+    ax2 = ax1.twinx()
+    ax2.plot(rows[:, u.value], "--") #, label = str(u) + " (real)")
+
+    #plt.xticks([start for start, _ in periods_in_days] + [periods_in_days[-1][-1]], dates)
+
+    for i, pname in enumerate(P_NAMES[:7]):
+        if i == 0:
+            ax1.plot(period_starts, parameters[:,i], label=pname)
+        else:
+            ax1.scatter(period_starts, parameters[:,i], label=pname)
+
+
+    ax2.legend()
+    ax1.legend()
+    plt.show()
+
+
+
 if __name__ == "__main__":
     # --- Choice of execution ---
     EXECUTION = "NO_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
@@ -801,7 +879,7 @@ if __name__ == "__main__":
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('--stability', help='Stability analysis',
                              action='store_true', required=False, default=False)
-    args_parser.add_argument('--stability2', help='Stability analysis 2',
+    args_parser.add_argument('--minimum', help='Local minimum analysis 2',
                              action='store_true', required=False, default=False)
     args_parser.add_argument('--record-optim', help="Record optimiser's work to given path",
                              required=False, default=None, type=str)
@@ -848,8 +926,14 @@ if __name__ == "__main__":
                   [0.18734771954492072, 0.17248396613817968, 0.6117386132553728, 0.0023674667906282113, 0.022585280945423548, 0.028057005218742406, 0.032584061431908826, 0.16777542121682318, 0.0451615840198355, 0.07507796518966266, 0.03572724713458639, 0.060160497625902046, 0.6513565057086848, 0.05590641059638597],
                   [0.20706543319838705, 0.1675073781095676, 0.2895121281202713, 0.0038911643379408176, 0.031058282426042864, 0.013357868185996625, 0.0579718109091564, 0.19582181285061223, 0.061466555070124745, 0.07883248082559581, 0.029048436241333263, 0.04521675298771622, 0.25503968975030133, 0.2398266420122448],
                   [0.3495513813402461, 0.1757375667186865, 0.7419412492861541, 0.0023838733095558067, 0.04147979701047269, 0.007598013172891928, 0.023814050319704832, 0.17290275121104545, 0.04339814744541998, 0.07762910865562846, 0.015252411513868417, 0.018980153002800135, 0.3154897098049746, 0.19559589620971338],
-                  [0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
+                  [0.22149298682627025, 0.13134490480308654, 0.3782789905320313, 0.002802470215709582, 0.03467414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
+                  #[0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
     parameters = np.array(parameters)
+
+
+    graph_synthesis(parameters, periods_in_days, dates, rows)
+
+
     """
     parameters = [[0.05207787586829836, 0.19437643151889256, 0.25882927627499613, 0.002598930041432537, 0.03287024477593973, 0.04453632115704963, 0.043164074052456904, 0.1012552267256648, 0.012232171157036167, 0.07820882346067388, 0.01591714941492931, 0.03179822629884987, 0.531371856470449, 0.015795676481463492],
                   [0.042580445381067644, 0.19855726567799162, 0.4160429190779611, 0.0014213257760221382, 0.015004650714616805, 0.010992118275774239, 0.014521267537479501, 0.09955268056579478, 0.07396785198328328, 0.10101010101010101, 0.010625, 0.3646120976917083, 0.14478147893555207, 0.04061366407215736],
@@ -957,7 +1041,7 @@ if __name__ == "__main__":
         rng = periods_in_days
 
     for period_ndx, period in enumerate(rng):
-        print(f"\n\nPeriod: [{period[0]}, {period[1]}]")
+        print(f"\n\nPeriod [{period_ndx}]: [{period[0]}, {period[1]}]. sres is {sres.shape}")
         nonConstantParamNames = [pName for pName in ms._paramNames if pName not in constantParams]
         params = dict(zip(nonConstantParamNames, parameters[i] + ((np.random.random() * 2) - 1) * parameters[i] * PARAMS_NOISE))
         period_duration = period[1] - period[0]
@@ -983,7 +1067,8 @@ if __name__ == "__main__":
                             '("GLOBAL_OPTIMISATION", "LOCAL_OPTIMISATION", "NO_OPTIMISATION")')
 
         if sres_temp.any():
-            print(sres_temp[-1, 0:8])
+            # sres_temp : compartments values, day by day
+            print(f"REINIT IC {sres.shape} + {sres_temp.shape}", sres_temp[-1, 0:8])
             ms.set_IC(conditions = sres_temp[-1, 0:8])
             if not sres.any():
                 sres = sres_temp[:13,:] * 0
@@ -991,6 +1076,7 @@ if __name__ == "__main__":
                 #sres = sres_temp
             else:
                 sres = np.concatenate((sres, sres_temp))
+                assert (sres[-1] == sres_temp[-1]).all()
         i += 1
 
     print(f"\n\nParameters used at each period:\n{save_params}")
@@ -1020,12 +1106,12 @@ if __name__ == "__main__":
         stability(ms, init_cond, parameters[-1], 2, 0.1)
         plt.show()
         exit()
-    elif args.stability2:
-        # We run this on the latest parameters
+    elif args.minimum:
+        # We run this on the last computed parameters
+        print("-"*80)
         print(period)
         print(save_params[-1])
-        print("-"*80)
-        stability2(ms, rows[period[0]:period[1], :], None, save_params[-1], None, 0.4)
+        study_minimum(ms, rows[period[0]:period[1], :], sres[period[0], 0:8], save_params[-1])
         plt.show()
         exit()
 
