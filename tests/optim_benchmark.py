@@ -29,10 +29,44 @@ np.random.seed(1000)
 np.seterr(all='raise')
 
 
+_pmf_cache = dict()
+_cache_hits = 0
+BINOM_LIMIT = 100
+BINOM_P_SCALE = 100
+
+def fast_log_binom_pmf(k,n,p):
+    global _cache_hits, _pmf_cache
+
+    p100 = round(p * BINOM_P_SCALE)
+    if n >= BINOM_LIMIT:
+        k = round(BINOM_LIMIT*k/n)
+        n = BINOM_LIMIT
+    t = (k, n, p100)
+    if t in _pmf_cache:
+        _cache_hits += 1
+        return _pmf_cache[t]
+    else:
+
+        b = binom.pmf(k, n, p)
+
+        if b > 1E-30:
+            log_bin = np.log(b)
+        else:
+            log_bin = -999
+
+        _pmf_cache[t] = log_bin
+        return log_bin
+
+
+
+
+
 class ModelOptimizerTestBench(SEIR_HCD):
 
     def __init__(self):
         super(ModelOptimizerTestBench,self).__init__(stocha=False)
+        self._pmf_cache = dict()
+        self._cache_hits = 0
 
 
     """Partie déterminieste à faire"""
@@ -97,7 +131,7 @@ class ModelOptimizerTestBench(SEIR_HCD):
                 # Take all the values of experiments on a given day day_ndx
                 # for a given measurement (state.value)
 
-                # predicted_total = le nombre total de personne dans
+                # predicted_total = prédiction du nombre total de personnes dans
                 #    un compartiment donné (x)
                 # observed_leaving = nombre d'individus qui quittent
                 #    le compartiment (dx/dt)
@@ -318,7 +352,12 @@ def team_training():
     IC = [S0, E0, A0, SP0, H0, C0, F0, R0]
     print(IC)
     ms.set_IC(conditions = IC)
-    initial_params = ms.get_initial_parameters()
+    p_values, p_bounds = ms.get_initial_parameters()
+
+    initial_params = Parameters()
+    for p_name, p_val in p_values.items():
+        pmin, pmax = p_bounds[p_name]
+        initial_params.add(p_name, p_val, min=pmin, max=pmax)
 
     sres = np.array([])
     for ndx_period, period in enumerate(periods_in_days):
