@@ -930,14 +930,14 @@ if __name__ == "__main__":
 
     # --- Set and load vaccination information ---
     if VACCINATION_HYPOTHESIS == 1:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, last_date_for_prediction:5250000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, last_date_for_prediction:3000000}
+        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:5250000}
+        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
     elif VACCINATION_HYPOTHESIS == 2:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, last_date_for_prediction:5750000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, last_date_for_prediction:3000000}
+        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:5750000}
+        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
     elif VACCINATION_HYPOTHESIS == 3:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, last_date_for_prediction:6250000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, last_date_for_prediction:3000000}
+        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:6250000}
+        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
     elif VACCINATION_HYPOTHESIS != 0:
         raise ValueError(f'Unknown Vaccination Hypothesis #{VACCINATION_HYPOTHESIS}...')
 
