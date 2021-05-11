@@ -699,6 +699,8 @@ class SEIR_HCD(Model):
 
 
 def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
+    # Set NON_PREDICTED_PERIODS to 3 to have a good example.
+
     from tqdm import tqdm
 
     SAMPLES = 50
@@ -741,6 +743,7 @@ def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
         axarr.flat[p_ndx].axvline(x=new_min[1],label=f"{new_min[1]:.3f}",color="red")
         axarr.flat[p_ndx].legend()
 
+    plt.savefig("minimum.pdf")
     plt.show()
 
 def stability(model, initial_conditions, parameters, stab_type, fraction):
@@ -864,6 +867,8 @@ if __name__ == "__main__":
                              action='store_true', required=False, default=False)
     args_parser.add_argument('--record-optim', help="Record optimiser's work to given path",
                              required=False, default=None, type=str)
+    args_parser.add_argument('--non-prediction', help="Periods to *not* predict (starting from the last)",
+                             required=False, default=0, type=int)
     args = args_parser.parse_args()
 
     # --- Choice of execution ---
@@ -894,9 +899,6 @@ if __name__ == "__main__":
         # Hypothesis 3: 450 000 vaccines administered per week until the 1st of June and then 650 000 per week until the 1st of July
         VACCINATION_HYPOTHESIS = 3#2 # 1, 2, 3
     GRAPH_PREFIX = EXECUTION + "_Vaccination_Hypothesis_" + str(VACCINATION_HYPOTHESIS) # prefix for naming the graph (should concisely describe the execution tested this time)
-
-
-
 
 
     # --- Loading data ----
@@ -938,7 +940,7 @@ if __name__ == "__main__":
                   [0.18734771954492072, 0.17248396613817968, 0.6117386132553728, 0.0023674667906282113, 0.022585280945423548, 0.028057005218742406, 0.032584061431908826, 0.16777542121682318, 0.0451615840198355, 0.07507796518966266, 0.03572724713458639, 0.060160497625902046, 0.6513565057086848, 0.05590641059638597],
                   [0.20706543319838705, 0.1675073781095676, 0.2895121281202713, 0.0038911643379408176, 0.031058282426042864, 0.013357868185996625, 0.0579718109091564, 0.19582181285061223, 0.061466555070124745, 0.07883248082559581, 0.029048436241333263, 0.04521675298771622, 0.25503968975030133, 0.2398266420122448],
                   [0.3495513813402461, 0.1757375667186865, 0.7419412492861541, 0.0023838733095558067, 0.04147979701047269, 0.007598013172891928, 0.023814050319704832, 0.17290275121104545, 0.04339814744541998, 0.07762910865562846, 0.015252411513868417, 0.018980153002800135, 0.3154897098049746, 0.19559589620971338],
-                  [0.22149298682627025, 0.13134490480308654, 0.3782789905320313, 0.002802470215709582, 0.03467414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
+                  [0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
                   #[0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
     parameters = np.array(parameters)
 
@@ -1055,7 +1057,7 @@ if __name__ == "__main__":
     # These periods are counted for those *bfore* the vaccination
     # periods.
 
-    NON_PREDICTED_PERIODS = 0
+    NON_PREDICTED_PERIODS = args.non_prediction
     if NON_PREDICTED_PERIODS:
         rng = periods_in_days[0:-NON_PREDICTED_PERIODS]
     else:
