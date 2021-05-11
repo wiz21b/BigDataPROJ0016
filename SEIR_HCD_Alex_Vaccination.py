@@ -8,7 +8,7 @@ from datetime import date
 from scipy.optimize import minimize as scipy_minimize
 from scipy.optimize import differential_evolution
 
-from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, load_vaccination_data, residual_sum_of_squares, periods_in_days, plot_periods, residuals_error, plot_periods_axis
+from utils import Model, ObsEnum, StateEnum, ObsFitEnum, StateFitEnum, load_model_data, load_vaccination_data, residual_sum_of_squares, periods_in_days, plot_periods, residuals_error
 
 import matplotlib.pyplot as plt
 
