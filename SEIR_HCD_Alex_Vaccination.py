@@ -78,11 +78,11 @@ class SEIR_HCD(Model):
         assert len(conditions) == len(self._compartmentNames), \
             "Number of initial conditions given not matching with the model."
 
+        self.initialConditionsAsArray = conditions
         self._initialConditions = dict(zip(self._compartmentNames, conditions))
         self._currentState = dict(zip(self._compartmentNames, conditions))
         self._population = sum(conditions)
         self._ICInitialized = True
-        return
 
     # J'ai mis ça là mais je ne sais pas encore si je l'utiliserai
     def set_param(self, parameters):
@@ -578,8 +578,8 @@ class SEIR_HCD(Model):
     """
     def predict(self, start = 0, end = None, parameters = None):
 
-        # print("PREDICT", start, end, parameters)
-        # print("PREDICT IC", self._initialConditions)
+        print("PREDICT PARAMS", start, end, parameters)
+        print("PREDICT IC", self._initialConditions)
 
         if not(end):
             end = len(self._data)
@@ -698,7 +698,7 @@ class SEIR_HCD(Model):
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt, dFIndt, dSPIndt, DTESTEDDT, DTESTEDPOSDT]
 
 
-def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
+def study_minimum(model, data, initial_conditions, parameters, fraction=0.3):
     # Set NON_PREDICTED_PERIODS to 3 to have a good example.
 
     from tqdm import tqdm
@@ -715,7 +715,9 @@ def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
 
     minimum = model.plumb(parameters, constantParams = dict(), isMLE=MLE)
 
-    fig, axarr = plt.subplots(4, 4)
+    fig, axarr = plt.subplots(4, 4, figsize=(10,12))
+    #fig.suptitle("Plot") # Tight layout screws it, and you need tight layout to put more space between subplots
+
     for p_ndx in tqdm(range(len(parameters))): # len(parameters)
         params = [p for p in parameters]  # copy
 
@@ -733,33 +735,47 @@ def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
             all_preds.append(cost)
             all_values.append(params[p_ndx])
 
+        if p_ndx % 4 != 0:
+            axarr.flat[p_ndx].get_yaxis().set_visible(False)
+
         axarr.flat[p_ndx].set_xlim(parameters[p_ndx] * (1 + fraction*2*(0 - 0.5)),
                                    parameters[p_ndx] * (1 + fraction*2*(1 - 0.5)))
         axarr.flat[p_ndx].set_ylim(0, minimum*2)
+        axarr.flat[p_ndx].set_ylabel("Cost")
         axarr.flat[p_ndx].title.set_text(model._paramNames[p_ndx])
-        axarr.flat[p_ndx].axvline(x=parameters[p_ndx])
         #axarr.flat[p_ndx].axhline(y=minimum)
         axarr.flat[p_ndx].plot(all_values, all_preds, c="black")
-        axarr.flat[p_ndx].axvline(x=new_min[1],label=f"{new_min[1]:.3f}",color="red")
-        axarr.flat[p_ndx].legend()
 
-    plt.savefig("minimum.pdf")
+        has_better_minium = abs((new_min[0] - minimum)/minimum) > 0.01
+        if has_better_minium:
+            axarr.flat[p_ndx].axvline(x=new_min[1],label=f"{new_min[1]:.3f}",color="red")
+
+        axarr.flat[p_ndx].axvline(x=parameters[p_ndx],c="blue")
+
+        if has_better_minium:
+            axarr.flat[p_ndx].legend()
+
+
+    axarr.flat[14].axis('off')
+    axarr.flat[15].axis('off')
+
+    fig.tight_layout()
+    plt.savefig("minimum.png")
     plt.show()
 
-def stability(model, initial_conditions, parameters, stab_type, fraction):
+def stability(model, initial_conditions, days_to_predict, parameters, stab_type, fraction):
 
-    fig, axarr = plt.subplots(3, 3)
+    fig, axarr = plt.subplots(3, 3, figsize=(10,10))
+
     for v_ndx, t in enumerate(list(StateEnum)[:8]):
 
-        print(t)
         all_preds = []
-        for i in range(300):
+        for i in range(600):
             if stab_type == 1:
                 rparams = parameters
                 # Randomize initial condition
                 ric = np.array(initial_conditions)
                 ric *= 1+fraction*(np.random.rand(ric.shape[0]) - 0.5)/0.5
-
                 ric = ric.tolist()
 
                 S0, E0, A0, SP0, H0, C0, F0, R0 = ric
@@ -775,8 +791,8 @@ def stability(model, initial_conditions, parameters, stab_type, fraction):
             else:
                 raise Exception("Unsupported")
 
-            ms.set_IC(ric)
-            sres_temp = model.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, rparams)))
+            model.set_IC(ric)
+            sres_temp = model.predict(end = days_to_predict, parameters = dict(zip(model._paramNames, rparams)))
             all_preds.append(sres_temp[:,t.value])
 
         #plt.figure()
@@ -786,19 +802,57 @@ def stability(model, initial_conditions, parameters, stab_type, fraction):
         for pred in all_preds:#all_preds.shape[0]):
             axarr.flat[v_ndx].plot(pred, c="black", alpha=0.01)
 
-        sres_temp = model.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, rparams)))
+        axarr.flat[v_ndx].title.set_text(str(t))
+        model.set_IC(initial_conditions)
+        sres_temp = model.predict(end = days_to_predict, parameters = dict(zip(model._paramNames, parameters)))
+        # print(sres_temp[:,t.value])
+        axarr.flat[v_ndx].plot(range(days_to_predict), sres_temp[:,t.value], '--', c='black')
+
         axarr.flat[v_ndx].set_ylim(bottom=0) # Must be set after plot
-        axarr.flat[v_ndx].plot(sres_temp[:,t.value], c="red")
 
     axarr.flat[8].axis('off')
+    # if stab_type == 1:
+    #     fig.suptitle(f"Stability of initial conditions, k={fraction:.1f}")
+    # else:
+    #     fig.suptitle(f"Stability of parameters, k={fraction:.1f}")
 
+    fig.tight_layout()
     if stab_type == 1:
-        fig.suptitle(f"Stability of initial conditions, k={fraction:.1f}")
+        plt.savefig("stability_IC.png")
     else:
-        fig.suptitle(f"Stability of parameters, k={fraction:.1f}")
-
+        plt.savefig("stability_params.png")
 
 def graph_synthesis(parameters, periods_in_days, dates, rows):
+    # Print dates in LaTex format
+
+    MOTIVES = [
+        "First lockdown",
+        "Lockdown leave phase 1,2",
+        "Lockdown leave phase 3",
+        "Masks and social distancing",
+        "5 persons bubbles",
+        "Beginning of second wave and light lockdown",
+        "Top of second wave, full lockdown",
+        "Lockdown continues, shops re-open",
+        "Lockdown continues, tighter border controls",
+        "Easing lockdown",
+        "Lockdown, school tightened, shopd closed",
+        "Leaving lockdown, schools, shops reopen"
+    ]
+
+    year = None
+    for i in range(len(dates)-1):
+        if dates[i].year != year:
+            year = dates[i].year
+            d = dates[i].strftime("{%-d}/{%-m}/%Y")
+            d2 = dates[i+1].strftime("{%-d}/{%-m}")
+        else:
+            d = dates[i].strftime("{%-d}/{%-m}")
+            d2 = dates[i+1].strftime("{%-d}/{%-m}")
+
+        print(f"{i+1} & {d} & {d2} & {MOTIVES[i]} \\\\")
+    exit()
+
     P_NAMES = ["beta", "Rho (E -> A)", "Sigma (A -> SP)", "Tau (SP -> H)", 'Delta (H -> C)',
                'Theta1 (H -> F)',
                'Theta2 (C -> F)', 'Gamma1', 'Gamma2', 'Gamma3',
@@ -806,6 +860,19 @@ def graph_synthesis(parameters, periods_in_days, dates, rows):
 
     print(parameters.shape)
 
+    periods_colors = ['red', # 13/3/2020
+                      None, # 4/5/2020 leaving lockdown
+                      None, # 8/6 leaving lockdown
+                      'yellow', # 25/7 Masks and social distancing
+                      None, # 24/9 new coronavirus restrictions were announced by the government. BIZARRE !!!
+                      'yellow', # 6/10 : Beginning of second wave and light lockdown
+                      'red', # 2/11 : Top of second wave, full lockdown. :
+                      'red', # 1/12 ???
+                      None, # 27/1/2021 of January 2021: ???
+                      'yellow', # 1/3 : soft lockdown
+                      'red', # 27/3 : lockdown
+                      None # 11/5/2021 : Leaving lockdown
+                      ]
 
 
     for i in range(len(periods_in_days)):
@@ -815,6 +882,10 @@ def graph_synthesis(parameters, periods_in_days, dates, rows):
 
     fig, ax1 = plt.subplots()
 
+    for ndx_p, p in enumerate(periods_in_days):
+        if periods_colors[ndx_p]:
+            ax1.axvspan(p[0], p[1]-1, color=periods_colors[ndx_p], alpha=0.5)
+
     """
     https://fr.wikipedia.org/wiki/Pand%C3%A9mie_de_Covid-19_en_Belgique
 
@@ -822,18 +893,18 @@ def graph_synthesis(parameters, periods_in_days, dates, rows):
     18 mars 2020 : Confinement généralisé
     4 mai 2020 : Déconfinement progressif
     """
-    s = (date(2020,3,14) - dates[0]).days
-    e = (date(2020,5,4) - dates[0]).days
-    ax1.axvspan(s, e, color='red', alpha=0.5)
+    # s = (date(2020,3,14) - dates[0]).days
+    # e = (date(2020,5,4) - dates[0]).days
+    # ax1.axvspan(s, e, color='red', alpha=0.5)
 
     """
     19 octobre 2020 : un couvre-feu est mis en place de minuit à 5 h du matin5 ; un couvre-feu de 1h à 6h était déjà appliqué dans les provinces du Brabant Wallon et du Luxembourg depuis respectivement les 13 et 14 octobre146. De plus, les bars et restaurants sont à nouveau fermés ; les contacts rapprochés sont limités à 1 personne maximum ; les rassemblements privés sont limités à quatre personnes pendant deux semaines, toujours les mêmes ; les rassemblements sur la voie publique sont limités à quatre personnes maximum ; le télétravail redevient la règle6.
     2 novembre 2020 : nouveau confinement national
     27 novembre 2020 : le Comité de concertation prolonge le confinement national jusqu'au 31 janvier 2021
     """
-    s = (date(2020,10,19) - dates[0]).days
-    e = (date(2021,1,31) - dates[0]).days
-    ax1.axvspan(s, e, color='red', alpha=0.5)
+    # s = (date(2020,10,19) - dates[0]).days
+    # e = (date(2021,1,31) - dates[0]).days
+    # ax1.axvspan(s, e, color='red', alpha=0.5)
 
     plot_periods(plt, dates)
 
@@ -906,11 +977,21 @@ if __name__ == "__main__":
     rows = np.array(observations)
     days = len(rows)
 
+
+    # print(rows[:,StateEnum.HOSPITALIZED.value])
+    # z = 1 - (rows[:,StateEnum.HOSPITALIZED.value] -  rows[:,StateEnum.CRITICAL.value]) / (1+rows[:,StateEnum.HOSPITALIZED.value])
+    # plt.plot(z)
+    # plt.ylim(0,0.040)
+    # plt.show()
+    # exit()
+
     # --- Initialisation of periods of similar measures ---
     dates = [observations.DATE.iloc[0].date(), date(2020, 3, 13), date(2020, 5, 4), date(2020, 6, 8),
              date(2020, 7, 25), date(2020, 9, 24), date(2020, 10, 6), date(2020, 11, 2),
              date(2020, 12, 1), date(2021, 1, 27), date(2021, 3, 1), date(2021, 3, 27),
              observations.DATE.iloc[-1].date()]
+
+
     # list of tuples (start, end) for each period with significantly distinctive covid-19 measures
     periods_in_days = periods_in_days(dates)
     periods_in_days = periods_in_days[1:] # we start fitting from the 2nd period to start with higher values
@@ -1048,6 +1129,7 @@ if __name__ == "__main__":
     sres = np.array([])
     i = 0
     save_params = []
+    save_ic = []
 
     # Running the model means possible doing parameter fitting on a
     # period and always make prediction for that period.
@@ -1073,17 +1155,24 @@ if __name__ == "__main__":
         ms.set_vaccination(vaccination_data.iloc[start:end], one_dose_efficacy, two_dose_efficacy)
         sres_temp = None
         if EXECUTION == "GLOBAL_OPTIMISATION":
+            save_ic.append(ms.initialConditionsAsArray)
             optimal_params = ms.fit_parameters(data = rows[period[0]:period[1], :], params = params, is_global_optimisation = True, params_random_noise = PARAMS_NOISE) # parameters[i])
             save_params.append(list(optimal_params.values()))
             if args.record_optim:
                 ms.dump_recorded_params(f"{args.record_optim}/opti_params{period_ndx}.pickle")
             sres_temp = ms.predict()
         elif EXECUTION == "LOCAL_OPTIMISATION":
+            save_ic.append(ms.initialConditionsAsArray)
             optimal_params = ms.fit_parameters(data = rows[period[0]:period[1], :], params = params)  # parameters[i])
             save_params.append(list(optimal_params.values()))
             sres_temp = ms.predict()
         elif EXECUTION == "NO_OPTIMISATION":
+            print("-"*80)
+            print(ms.initialConditionsAsArray)
+
+            save_ic.append(ms.initialConditionsAsArray)
             sres_temp = ms.predict(end = period[1] - period[0], parameters = params)
+            print(params)
             save_params.append(list(params.values()))
         else:
             raise Exception('ERROR: The variable EXECUTION was not set to a valid value '
@@ -1125,8 +1214,9 @@ if __name__ == "__main__":
         print("S0, E0, A0, SP0, H0, C0, F0, R0")
         print(init_cond)
         # We run this on the latest parameters
-        stability(ms, init_cond, parameters[-1], 1, 0.1)
-        stability(ms, init_cond, parameters[-1], 2, 0.1)
+        #stability(ms, init_cond, period[1] - period[0], save_params[-1], 1, 0.1)
+        stability(ms, save_ic[-1], period[1] - period[0], save_params[-1], 1, 0.1)
+        stability(ms, save_ic[-1], period[1] - period[0], save_params[-1], 2, 0.1)
         plt.show()
         exit()
     elif args.minimum:
