@@ -682,6 +682,36 @@ class SEIR_HCD(Model):
             beta_vaccinated_twice = beta * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
             beta = beta_not_vaccinated + beta_vaccinated_only_once + beta_vaccinated_twice
 
+            #rho_not_vaccinated = rho * (1 - vaccinated_once / (N - F))
+            #rho_vaccinated_only_once = rho * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
+            #rho_vaccinated_twice = rho * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
+            #rho = rho_not_vaccinated + rho_vaccinated_only_once + rho_vaccinated_twice
+
+            #sigma_not_vaccinated = sigma * (1 - vaccinated_once / (N - F))
+            #sigma_vaccinated_only_once = sigma * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
+            #sigma_vaccinated_twice = sigma * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
+            #sigma = sigma_not_vaccinated + sigma_vaccinated_only_once + sigma_vaccinated_twice
+
+            #tau_not_vaccinated = tau * (1 - vaccinated_once / (N - F))
+            #tau_vaccinated_only_once = tau * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
+            #tau_vaccinated_twice = tau * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
+            #tau = tau_not_vaccinated + tau_vaccinated_only_once + tau_vaccinated_twice
+
+            #delta_not_vaccinated = delta * (1 - vaccinated_once / (N - F))
+            #delta_vaccinated_only_once = delta * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
+            #delta_vaccinated_twice = delta * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
+            #delta = delta_not_vaccinated + delta_vaccinated_only_once + delta_vaccinated_twice
+
+            #theta1_not_vaccinated = theta1 * (1 - vaccinated_once / (N - F))
+            #theta1_vaccinated_only_once = theta1 * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
+            #theta1_vaccinated_twice = theta1 * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
+            #theta1 = theta1_not_vaccinated + theta1_vaccinated_only_once + theta1_vaccinated_twice
+
+            #theta2_not_vaccinated = theta2 * (1 - vaccinated_once / (N - F))
+            #theta2_vaccinated_only_once = theta2 * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
+            #theta2_vaccinated_twice = theta2 * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
+            #theta2 = theta2_not_vaccinated + theta2_vaccinated_only_once + theta2_vaccinated_twice
+
             dSdt = -beta * S * (A + SP) / N + alphaR
             dEdt = beta * S * (A + SP) / N - rho * E
             dAdt = rho * E - sigma * A - gamma4 * A
@@ -874,8 +904,8 @@ if __name__ == "__main__":
     args = args_parser.parse_args()
 
     # --- Choice of execution ---
-    ALL_SCENARIOS = False#False#True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
-    EXECUTION = "LOCAL_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
+    ALL_SCENARIOS = True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
+    EXECUTION = "NO_OPTIMISATION"#"GLOBAL_OPTIMISATION" #"LOCAL_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
     # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum absolute error,
     #                          followed by a local optimisation with the likelihood,
     #                          no use of initial parameters,
@@ -889,26 +919,23 @@ if __name__ == "__main__":
     PARAMS_NOISE = 0#0.1 # percentage of random noise to apply to parameters (ideally used before starting a local optimisation) to prevent overfitting
     WITH_VACCINATION = True#False # Whether we take the effects of vaccination into account
     SAVE_CSV = False#True # Save experiment to a csv file (requires to first create a folder 'csv')
-    SAVE_GRAPH = False#True # whether the graphs should be saved
+    SAVE_GRAPH = True#True # whether the graphs should be saved
     IMAGE_FOLDER = "img/"  # folder in which graphs are saved
     GRAPH_FORMAT = "png" # format in which the graph should be saved
-    LAST_DATE_FOR_PREDICTION = date(2021, 7, 1) # date when the prediction should stop
+    FIGURE_SIZE = (10, 5) # size of the figures
+    LAST_DATE_FOR_PREDICTION = date(2021, 8, 1) # date when the prediction should stop
                                                 # (pay attention to set one_dose_vaccination_forecasts
                                                 # and two_dose_vaccination_forecasts accordingly)
-    # Hypothesis 0: no vaccination
-    VACCINATION_HYPOTHESIS = 0
-    if WITH_VACCINATION:
-        # Hypothesis 1: 450 000 vaccines administered per week until the 1st of June and then 450 000 per week until the 1st of July
-        # Hypothesis 2: 450 000 vaccines administered per week until the 1st of June and then 550 000 per week until the 1st of July
-        # Hypothesis 3: 450 000 vaccines administered per week until the 1st of June and then 650 000 per week until the 1st of July
-        VACCINATION_HYPOTHESIS = 2 # 1, 2, 3
+    EXPERIMENT = 1 # 1, 2 or 3
 
     if ALL_SCENARIOS:
-        VACCINATION_HYPOTHESES = [1, 2, 3]
-        GRAPH_PREFIX = "all_predictions"
+        EXPERIMENTS = [1, 2, 3]
+        GRAPH_PREFIX = "All_Predictions"
     else:
-        GRAPH_PREFIX = EXECUTION + "_Vaccination_Hypothesis_" + str(VACCINATION_HYPOTHESIS) # prefix for naming the graph (should concisely describe the execution tested this time)
+        GRAPH_PREFIX = "Experiment#" + str(EXPERIMENT) # prefix for naming the graph (should concisely describe the execution tested this time)
 
+    if not WITH_VACCINATION:
+        GRAPH_PREFIX = "WithoutVaccination"
 
     # --- Loading data ----
     observations = load_model_data()
@@ -939,6 +966,7 @@ if __name__ == "__main__":
     IC = [S0, E0, A0, SP0, H0, C0, F0, R0]
 
     # --- Optimal parameters from the global optimization ---
+
     parameters = [[0.04417909904136072, 0.16666666666666666, 0.25, 0.002607505957964171, 0.04506954288814314, 0.04000391524885744, 0.05945901639344263, 0.09824561403508772, 0.001, 0.09442629590963579, 0.010625, 0.008623746131208974, 0.5360234479440541, 0.017051185637991156],
                   [0.04271173866387728, 0.17873099205973036, 0.48077474701234385, 0.001496307466062664, 0.01795084287535577, 0.01020473022643667, 0.026448479893415137, 0.09981598389810127, 0.06416735909449253, 0.10101010101010101, 0.0329622386461159, 0.4348792278828317, 0.43971725559769304, 0.019722199406887207],
                   [0.18896851158715078, 0.18706606005630683, 0.28005015665764743, 0.0006069235077946143, 0.019381691800506796, 0.021534103103064736, 0.05018119923827652, 0.1919882087569018, 0.030157869507219617, 0.08022611771744065, 0.04912210183222269, 0.011006785812258257, 0.7708926655590773, 0.015971950177058068],
@@ -951,6 +979,9 @@ if __name__ == "__main__":
                   [0.3495513813402461, 0.1757375667186865, 0.7419412492861541, 0.0023838733095558067, 0.04147979701047269, 0.007598013172891928, 0.023814050319704832, 0.17290275121104545, 0.04339814744541998, 0.07762910865562846, 0.015252411513868417, 0.018980153002800135, 0.3154897098049746, 0.19559589620971338],
                   [0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
                   #[0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
+
+    #parameters = [[0.007692325271739853, 0.1, 0.09887464104321311, 0.006425584157336797, 0.0430654244327903, 0.043436790517044715, 0.05945901639344263, 0.10370284387857026, 0.01714682710386275, 0.10101010101010101, 0.010638224405632857, 0.01305133011242865, 0.8315102604160682, 0.02204064425015183], [0.025857249031070357, 0.08035222830146109, 0.14305789766664806, 0.0056913187249469305, 0.015604726283987087, 0.009484199432928903, 0.015381846014005399, 0.09824561403508772, 0.06304249761590976, 0.09917750392749476, 0.041627037862451206, 0.07772451228999161, 0.5256436304514621, 0.0616757179515289], [0.4149184069266358, 0.010451870145798256, 0.08611283018472003, 0.004270531178296848, 0.019211921448623152, 0.0247781445821075, 0.0572767394430687, 0.09832848104082467, 0.03918064765339405, 0.08520086552409857, 0.010680261163839567, 0.2229885363675479, 0.671713804510069, 0.06899169252387011], [0.616389439478218, 0.002835672455198968, 0.032600436240726796, 0.00917069922905305, 0.04075448337365765, 0.00930520752672252, 0.03566031460009921, 0.10000679693133147, 0.059087926179180995, 0.0804969816711893, 0.020238553525022872, 0.28558518076928174, 0.1050009698503192, 0.2658616689878186], [0.00801392542675861, 0.007833308669648096, 0.02631882281805921, 0.01696119945906511, 0.05260684303541565, 0.0061313053800835056, 0.032411054593439535, 0.16567973871659233, 0.010035629363839444, 0.09390307247402158, 0.048399237006624615, 0.25190836790338295, 0.7301013436886459, 0.24755435270858928], [0.03898026125252241, 0.03599311520556338, 0.03258213742781488, 0.014568271767961839, 0.02951838848202066, 0.021200073558147205, 0.03003503756933043, 0.11513755227708267, 0.01503036848168774, 0.041894536455804765, 0.01478747490994736, 0.18296097366524577, 0.6017890007103931, 0.3085006966867723], [0.30245547338601536, 0.00104398910346318, 0.02388199678748723, 0.016622722151914196, 0.03619347549821561, 0.02355291349706393, 0.0466734353389126, 0.11558716700663274, 0.05300193718272426, 0.0974439270005784, 0.03531372328085223, 0.3102026909221759, 0.19316523083544415, 0.14140443949345627], [0.39544902947920985, 0.0015612665693203263, 0.0809835425457402, 0.011704770217228178, 0.022832315117678206, 0.027344620511464475, 0.03708983848606527, 0.1707577235973873, 0.03923873356569179, 0.07014288272298949, 0.012536627904618505, 0.23932188332376633, 0.7602816051673658, 0.14880914065157935], [0.5132183297181763, 0.002016622897791932, 0.26343811416486107, 0.005927397121597503, 0.02772111417436935, 0.01761770550407263, 0.033302050864497695, 0.14351716840655765, 0.06396342558337442, 0.08755752705698597, 0.040838526612980756, 0.4792968893761258, 0.3102469817930291, 0.18152491291465017], [0.12037444759505331, 0.0034015769019903885, 0.050401603843981235, 0.010287317447150614, 0.032628677559337675, 0.008125692634214594, 0.02362435643144153, 0.16438936661773115, 0.06133539415768126, 0.05699178247123524, 0.025113841337835223, 0.28506352841277977, 0.7536746317536662, 0.14141737386760944], [0.16320673065123745, 0.0014706588273997391, 0.03356924419147485, 0.012969734006323104, 0.05357997192849656, 0.00882354419021357, 0.023489037521424914, 0.11524122004046258, 0.057078762823673274, 0.09896556903003399, 0.026905183917251756, 0.2308544269929279, 0.7848713516887519, 0.14257592826233406]]
+    #parameters = [[0.0368071954861684, 0.0947136216604078, 0.25, 0.003752780379383316, 0.04423024972645248, 0.037797162293680464, 0.05945901639344263, 0.09824561403508772, 0.016287712342568227, 0.08201438601089536, 0.013487299017686583, 0.0, 0.5509806531155148, 0.021219292887969306], [0.025753799370898126, 0.08780801694347487, 0.2817088057291152, 0.0022064093968364377, 0.017793105256140546, 0.007335201727075423, 0.02976609184724026, 0.10411377596451053, 0.07164073661210682, 0.09788708346025612, 0.01494303527330993, 0.39104944840712236, 0.22724323080809966, 0.04205775958241245], [0.5424673171154226, 0.012041815962769204, 0.47107430542939255, 0.000928602834629841, 0.016810759276582526, 0.02338371876913798, 0.05593289617224355, 0.11076009992525093, 0.03505246443807774, 0.06683748414024336, 0.02291083713677653, 0.10074624891757211, 0.5360592386334477, 0.0292415420145173], [0.6605753052863856, 0.0038011359511190873, 0.25090485036768057, 0.002011697791772289, 0.04264468415226461, 0.00704536963867784, 0.0512415916060523, 0.09838532309572191, 0.08717061410336059, 0.08180899031437865, 0.019107852561926875, 0.0, 0.2501993906466913, 0.18849727804277222], [0.03999740906086857, 0.00934177015262666, 0.4000243995156083, 0.0023288254971122095, 0.04294998578131993, 0.006830009793411213, 0.01463526484227726, 0.19903265395418573, 0.02834969119820185, 0.06075466685121352, 0.02870768286051557, 0.006157414536842654, 0.8105694826565247, 0.0983926774452747], [0.4186580919601362, 0.018442968680155086, 0.2669477993514437, 0.0031481943305686423, 0.032550890235224825, 0.014100722878022335, 0.05205225248874413, 0.11994451044272961, 0.009965705202415362, 0.04489571663123679, 0.01294706171633347, 0.0721225587608437, 0.48632040126573256, 0.2286471475595283], [0.08651285320548766, 0.0034654560971087212, 0.7473151055683174, 0.003027432538097366, 0.027159672526540495, 0.028270529661879335, 0.03472516205319963, 0.10710066095351238, 0.039937558098581495, 0.0726095050462576, 0.04987085538568064, 0.07089041043549169, 0.6283989101889674, 0.06661784461020526], [0.009016298864714167, 0.005662415357833059, 0.8205756239345372, 0.003569664891302773, 0.024542564815355716, 0.028563841958463877, 0.031395996862270015, 0.19787476769143253, 0.0420555412615009, 0.07913288528408367, 0.038876689928366355, 0.22677571260453536, 0.6866351970827508, 0.07481425117611465], [0.5594144314877073, 0.003561091641989854, 0.4779388496374496, 0.004623419457838764, 0.022104213545403963, 0.013069894847871626, 0.04576144201282678, 0.17308465879625834, 0.06751350038897565, 0.05248513626449979, 0.01677854803594977, 0.09012934782162374, 0.4942198815832807, 0.16663231948284013], [0.412229497771733, 0.003806019583746558, 0.25, 0.0038238206029543617, 0.04069695930175802, 0.01129352585584758, 0.01807712557715599, 0.10440370638784201, 0.04644613420194441, 0.08267650670671549, 0.016963714734154055, 0.3458316325136745, 0.7661122035587778, 0.09551918166695672], [0.08676172270862999, 0.0036686875717889087, 0.3436439930320918, 0.004991204096852537, 0.05444478053281812, 0.007005483330034338, 0.026691155049127373, 0.13985758111866592, 0.049123251223763015, 0.09769924053825457, 0.04616678401839174, 0.10450332615521248, 0.893487884757076, 0.09899845023164483]]
     parameters = np.array(parameters)
 
 
@@ -1018,6 +1049,16 @@ if __name__ == "__main__":
         6.96310265e-02, 5.65846426e-02, 4.42231908e-02]])
     parameters = parameters.transpose()
     """
+    experiment_params = [0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]
+
+    if EXPERIMENT == 1:
+        experiment_params[0] *= 1
+    elif EXPERIMENT == 2:
+        experiment_params[0] = parameters[5, 0] * 1.7 #0.1794110822420536 * 1.7
+    elif EXPERIMENT == 3:
+        experiment_params[0] *= 1.65
+    else:
+        raise ValueError(f"No experiment #{EXPERIMENT} exists...")
 
     # --- Parameters to keep constant across periods (their value is taken from get_initial_parameters) ---
     # constantParamNames = ("Rho", "Sigma", "Gamma1", "Gamma2", "Gamma3", "Gamma4")  # Must keep the same order of parameters !
@@ -1029,25 +1070,19 @@ if __name__ == "__main__":
     constantParams = {}
 
     # --- Load vaccination information ---
-    if VACCINATION_HYPOTHESIS == 1:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:5250000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
-    elif VACCINATION_HYPOTHESIS == 2:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:5750000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
-    elif VACCINATION_HYPOTHESIS == 3:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:6250000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
-    elif VACCINATION_HYPOTHESIS != 0:
-        raise ValueError(f'Unknown Vaccination Hypothesis #{VACCINATION_HYPOTHESIS}...')
+    # Hypothesis: 450 000 vaccines administered per week until the 1st of June,
+    # then 550 000 per week until the 1st of July,
+    # and then 650 000 per week until the 1st of August.
+    one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, date(2021, 7, 1):5500000, LAST_DATE_FOR_PREDICTION:7500000}
+    two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, date(2021, 7, 1):3200000, LAST_DATE_FOR_PREDICTION:4450000}
 
     one_dose_efficacy = 0
     two_dose_efficacy = 0
     if WITH_VACCINATION:
         one_dose_efficacy = 0.65
         two_dose_efficacy = 0.8
-        vaccination_data = load_vaccination_data(one_dose_vaccination_forecasts, two_dose_vaccination_forecasts)
-    vaccination_effect_delay = 14 # hypothesis: 14 days before the vaccine takes effect
+    vaccination_data = load_vaccination_data(one_dose_vaccination_forecasts, two_dose_vaccination_forecasts)
+    vaccination_effect_delay = 14  # hypothesis: 14 days before the vaccine takes effect
 
     NON_PREDICTED_PERIODS = args.non_prediction
 
@@ -1149,40 +1184,42 @@ if __name__ == "__main__":
             plt.show()
             exit()
 
-        elif EXECUTION == "GLOBAL_OPTIMISATION" or EXECUTION == "LOCAL_OPTIMISATION":
-            sres_temp = ms.predict(end = n_prediction_days)
+        #elif EXECUTION == "GLOBAL_OPTIMISATION" or EXECUTION == "LOCAL_OPTIMISATION":
+            #sres_temp = ms.predict(end = n_prediction_days)
         else:
-            sres_temp = ms.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, parameters[i - 1])))
+            sres_temp = ms.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, experiment_params))) #parameters[i - 1])))
 
         sres = np.concatenate((sres, sres_temp))
 
     else:
-        data = np.array([])
-        for vaccination_hypothesis in VACCINATION_HYPOTHESES:
-            csv_path = "csv/" + EXECUTION + "_Vaccination_Hypothesis_" + str(vaccination_hypothesis) + '.csv'
+        #data = np.array([])
+        csv_path = "csv/" + "WithoutVaccination" + '.csv'
+        csv_data = pd.read_csv(csv_path).to_numpy()
+        data = csv_data[np.newaxis, ...]
+        for experiment in EXPERIMENTS:
+            csv_path = "csv/" + "Experiment#" + str(experiment) + '.csv'
             csv_data = pd.read_csv(csv_path).to_numpy()
-            if not data.any():
-                data = csv_data[np.newaxis, ...]
-            else:
-                data = np.append(data, csv_data[np.newaxis, ...], axis=0)
-
+            #if not data.any():
+                #data = csv_data[np.newaxis, ...]
+            #else:
+            data = np.append(data, csv_data[np.newaxis, ...], axis=0)
         all_predictions = data[:, :, 2:]
         all_vaccination_data = data[:, :, 0:2]
 
     dates += list(one_dose_vaccination_forecasts.keys())
 
     # --- Plot graphs ---
-    plt.figure()
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Vaccination')
     if ALL_SCENARIOS:
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(all_vaccination_data[hypothesis-1, :, 0], label = f"Cumulative Number of Partially Vaccinated People - Hypothesis #{hypothesis}")
-            plt.plot(all_vaccination_data[hypothesis-1, :, 1], label = f"Cumulative Number of Fully Vaccinated People - Hypothesis #{hypothesis}")
+        #for experiment in EXPERIMENTS:
+        plt.plot(all_vaccination_data[1, :, 0], label = f"Cumulative Number of Partially Vaccinated People - Hypothesis #{experiment}")
+        plt.plot(all_vaccination_data[1, :, 1], label = f"Cumulative Number of Fully Vaccinated People - Hypothesis #{experiment}")
     else:
-        plt.plot(vaccination_data.VACCINATED_ONCE, label = f"Cumulative Number of Partially Vaccinated People - Hypothesis #{VACCINATION_HYPOTHESIS}")
-        plt.plot(vaccination_data.VACCINATED_TWICE, label = f"Cumulative Number of Fully Vaccinated People - Hypothesis #{VACCINATION_HYPOTHESIS}")
+        plt.plot(vaccination_data.VACCINATED_ONCE, label = f"Cumulative Number of Partially Vaccinated People")
+        plt.plot(vaccination_data.VACCINATED_TWICE, label = f"Cumulative Number of Fully Vaccinated People")
     plot_periods(plt, dates)
-    plt.legend()
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-vaccination.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
@@ -1198,29 +1235,31 @@ if __name__ == "__main__":
         print(last_fitted_day, len(sres))
 
 
-    plt.figure()
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Hospitalised Per Day')
     t = StateEnum.DHDT
     u = ObsEnum.DHDT
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + f" - Hypothesis #{hypothesis}")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
         plt.plot(range(last_fitted_day, len(sres)),
                  sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
     plot_periods(plt, dates)
-    plt.legend()
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-dhdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Hospitalised')
     t = StateEnum.HOSPITALIZED
     u = ObsEnum.NUM_HOSPITALIZED
@@ -1228,10 +1267,12 @@ if __name__ == "__main__":
 
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-             all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1239,12 +1280,12 @@ if __name__ == "__main__":
                  sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
-    plt.legend()
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-hospitalised.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Critical')
     t = StateEnum.CRITICAL
     u = ObsEnum.NUM_CRITICAL
@@ -1252,10 +1293,12 @@ if __name__ == "__main__":
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-             all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1263,22 +1306,24 @@ if __name__ == "__main__":
                  sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
-    plt.legend()
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-critical.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Fatalities')
     t = StateEnum.FATALITIES
     u = ObsEnum.NUM_FATALITIES
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-            all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1290,17 +1335,19 @@ if __name__ == "__main__":
         plt.savefig('{}{}-fatalities.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Fatalities Per Day')
     t = StateEnum.DFDT
     u = ObsEnum.DFDT
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-             all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1312,17 +1359,19 @@ if __name__ == "__main__":
         plt.savefig('{}{}-dfdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Number of People Tested Per Day')
     t = StateEnum.DTESTEDDT
     u = ObsEnum.NUM_TESTED
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1334,17 +1383,19 @@ if __name__ == "__main__":
         plt.savefig('{}{}-dtesteddt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Number of People Tested Positive Per Day')
     t = StateEnum.DTESTEDPOSDT
     u = ObsEnum.NUM_POSITIVE
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
