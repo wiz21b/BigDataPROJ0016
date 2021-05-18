@@ -80,11 +80,11 @@ class SEIR_HCD(Model):
         assert len(conditions) == len(self._compartmentNames), \
             "Number of initial conditions given not matching with the model."
 
+        self.initialConditionsAsArray = conditions
         self._initialConditions = dict(zip(self._compartmentNames, conditions))
         self._currentState = dict(zip(self._compartmentNames, conditions))
         self._population = sum(conditions)
         self._ICInitialized = True
-        return
 
     # J'ai mis ça là mais je ne sais pas encore si je l'utiliserai
     def set_param(self, parameters):
@@ -580,8 +580,8 @@ class SEIR_HCD(Model):
     """
     def predict(self, start = 0, end = None, parameters = None):
 
-        # print("PREDICT", start, end, parameters)
-        # print("PREDICT IC", self._initialConditions)
+        print("PREDICT PARAMS", start, end, parameters)
+        print("PREDICT IC", self._initialConditions)
 
         if not(end):
             end = len(self._data)
@@ -682,36 +682,6 @@ class SEIR_HCD(Model):
             beta_vaccinated_twice = beta * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
             beta = beta_not_vaccinated + beta_vaccinated_only_once + beta_vaccinated_twice
 
-            #rho_not_vaccinated = rho * (1 - vaccinated_once / (N - F))
-            #rho_vaccinated_only_once = rho * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
-            #rho_vaccinated_twice = rho * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
-            #rho = rho_not_vaccinated + rho_vaccinated_only_once + rho_vaccinated_twice
-
-            #sigma_not_vaccinated = sigma * (1 - vaccinated_once / (N - F))
-            #sigma_vaccinated_only_once = sigma * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
-            #sigma_vaccinated_twice = sigma * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
-            #sigma = sigma_not_vaccinated + sigma_vaccinated_only_once + sigma_vaccinated_twice
-
-            #tau_not_vaccinated = tau * (1 - vaccinated_once / (N - F))
-            #tau_vaccinated_only_once = tau * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
-            #tau_vaccinated_twice = tau * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
-            #tau = tau_not_vaccinated + tau_vaccinated_only_once + tau_vaccinated_twice
-
-            #delta_not_vaccinated = delta * (1 - vaccinated_once / (N - F))
-            #delta_vaccinated_only_once = delta * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
-            #delta_vaccinated_twice = delta * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
-            #delta = delta_not_vaccinated + delta_vaccinated_only_once + delta_vaccinated_twice
-
-            #theta1_not_vaccinated = theta1 * (1 - vaccinated_once / (N - F))
-            #theta1_vaccinated_only_once = theta1 * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
-            #theta1_vaccinated_twice = theta1 * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
-            #theta1 = theta1_not_vaccinated + theta1_vaccinated_only_once + theta1_vaccinated_twice
-
-            #theta2_not_vaccinated = theta2 * (1 - vaccinated_once / (N - F))
-            #theta2_vaccinated_only_once = theta2 * ((vaccinated_once - vaccinated_twice) / (N - F)) * (1 - self.one_dose_efficacy)
-            #theta2_vaccinated_twice = theta2 * (vaccinated_twice / (N - F)) * (1 - self.two_dose_efficacy)
-            #theta2 = theta2_not_vaccinated + theta2_vaccinated_only_once + theta2_vaccinated_twice
-
             dSdt = -beta * S * (A + SP) / N + alphaR
             dEdt = beta * S * (A + SP) / N - rho * E
             dAdt = rho * E - sigma * A - gamma4 * A
@@ -730,7 +700,7 @@ class SEIR_HCD(Model):
         return [dSdt, dEdt, dAdt, dSPdt, dHdt, dCdt, dFdt, dRdt, dHIndt, dFIndt, dSPIndt, DTESTEDDT, DTESTEDPOSDT]
 
 
-def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
+def study_minimum(model, data, initial_conditions, parameters, fraction=0.3):
     # Set NON_PREDICTED_PERIODS to 3 to have a good example.
 
     from tqdm import tqdm
@@ -747,7 +717,9 @@ def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
 
     minimum = model.plumb(parameters, constantParams = dict(), isMLE=MLE)
 
-    fig, axarr = plt.subplots(4, 4)
+    fig, axarr = plt.subplots(4, 4, figsize=(10,12))
+    #fig.suptitle("Plot") # Tight layout screws it, and you need tight layout to put more space between subplots
+
     for p_ndx in tqdm(range(len(parameters))): # len(parameters)
         params = [p for p in parameters]  # copy
 
@@ -765,33 +737,47 @@ def study_minimum(model, data, initial_conditions, parameters, fraction=0.8):
             all_preds.append(cost)
             all_values.append(params[p_ndx])
 
+        if p_ndx % 4 != 0:
+            axarr.flat[p_ndx].get_yaxis().set_visible(False)
+
         axarr.flat[p_ndx].set_xlim(parameters[p_ndx] * (1 + fraction*2*(0 - 0.5)),
                                    parameters[p_ndx] * (1 + fraction*2*(1 - 0.5)))
         axarr.flat[p_ndx].set_ylim(0, minimum*2)
+        axarr.flat[p_ndx].set_ylabel("Cost")
         axarr.flat[p_ndx].title.set_text(model._paramNames[p_ndx])
-        axarr.flat[p_ndx].axvline(x=parameters[p_ndx])
         #axarr.flat[p_ndx].axhline(y=minimum)
         axarr.flat[p_ndx].plot(all_values, all_preds, c="black")
-        axarr.flat[p_ndx].axvline(x=new_min[1],label=f"{new_min[1]:.3f}",color="red")
-        axarr.flat[p_ndx].legend()
 
-    plt.savefig("minimum.pdf")
+        has_better_minium = abs((new_min[0] - minimum)/minimum) > 0.01
+        if has_better_minium:
+            axarr.flat[p_ndx].axvline(x=new_min[1],label=f"{new_min[1]:.3f}",color="red")
+
+        axarr.flat[p_ndx].axvline(x=parameters[p_ndx],c="blue")
+
+        if has_better_minium:
+            axarr.flat[p_ndx].legend()
+
+
+    axarr.flat[14].axis('off')
+    axarr.flat[15].axis('off')
+
+    fig.tight_layout()
+    plt.savefig("minimum.png")
     plt.show()
 
-def stability(model, initial_conditions, parameters, stab_type, fraction):
+def stability(model, initial_conditions, days_to_predict, parameters, stab_type, fraction):
 
-    fig, axarr = plt.subplots(3, 3)
+    fig, axarr = plt.subplots(3, 3, figsize=(10,10))
+
     for v_ndx, t in enumerate(list(StateEnum)[:8]):
 
-        print(t)
         all_preds = []
-        for i in range(300):
+        for i in range(600):
             if stab_type == 1:
                 rparams = parameters
                 # Randomize initial condition
                 ric = np.array(initial_conditions)
                 ric *= 1+fraction*(np.random.rand(ric.shape[0]) - 0.5)/0.5
-
                 ric = ric.tolist()
 
                 S0, E0, A0, SP0, H0, C0, F0, R0 = ric
@@ -807,8 +793,8 @@ def stability(model, initial_conditions, parameters, stab_type, fraction):
             else:
                 raise Exception("Unsupported")
 
-            ms.set_IC(ric)
-            sres_temp = model.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, rparams)))
+            model.set_IC(ric)
+            sres_temp = model.predict(end = days_to_predict, parameters = dict(zip(model._paramNames, rparams)))
             all_preds.append(sres_temp[:,t.value])
 
         #plt.figure()
@@ -818,34 +804,88 @@ def stability(model, initial_conditions, parameters, stab_type, fraction):
         for pred in all_preds:#all_preds.shape[0]):
             axarr.flat[v_ndx].plot(pred, c="black", alpha=0.01)
 
-        sres_temp = model.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, rparams)))
+        axarr.flat[v_ndx].title.set_text(str(t))
+        model.set_IC(initial_conditions)
+        sres_temp = model.predict(end = days_to_predict, parameters = dict(zip(model._paramNames, parameters)))
+        # print(sres_temp[:,t.value])
+        axarr.flat[v_ndx].plot(range(days_to_predict), sres_temp[:,t.value], '--', c='black')
+
         axarr.flat[v_ndx].set_ylim(bottom=0) # Must be set after plot
-        axarr.flat[v_ndx].plot(sres_temp[:,t.value], c="red")
 
     axarr.flat[8].axis('off')
+    # if stab_type == 1:
+    #     fig.suptitle(f"Stability of initial conditions, k={fraction:.1f}")
+    # else:
+    #     fig.suptitle(f"Stability of parameters, k={fraction:.1f}")
 
+    fig.tight_layout()
     if stab_type == 1:
-        fig.suptitle(f"Stability of initial conditions, k={fraction:.1f}")
+        plt.savefig("stability_IC.png")
     else:
-        fig.suptitle(f"Stability of parameters, k={fraction:.1f}")
-
+        plt.savefig("stability_params.png")
 
 def graph_synthesis(parameters, periods_in_days, dates, rows):
-    P_NAMES = ["beta", "Rho (E -> A)", "Sigma (A -> SP)", "Tau (SP -> H)", 'Delta (H -> C)',
+    # Print dates in LaTex format
+
+    MOTIVES = [
+        "First lockdown",
+        "Lockdown leave phase 1,2",
+        "Lockdown leave phase 3",
+        "Masks and social distancing",
+        "5 persons bubbles",
+        "Beginning of second wave and light lockdown",
+        "Top of second wave, full lockdown",
+        "Lockdown continues, shops re-open",
+        "Lockdown continues, tighter border controls",
+        "Easing lockdown",
+        "Lockdown, school tightened, shopd closed",
+        "Leaving lockdown, schools, shops reopen"
+    ]
+
+    year = None
+    for i in range(len(dates)-1):
+        if dates[i].year != year:
+            year = dates[i].year
+            d = dates[i].strftime("{%-d}/{%-m}/%Y")
+            d2 = dates[i+1].strftime("{%-d}/{%-m}")
+        else:
+            d = dates[i].strftime("{%-d}/{%-m}")
+            d2 = dates[i+1].strftime("{%-d}/{%-m}")
+
+        print(f"{i+1} & {d} & {d2} & {MOTIVES[i]} \\\\")
+
+    P_NAMES = ["Beta (S -> E)", "Rho (E -> A)", "Sigma (A -> SP)", "Tau (SP -> H)", 'Delta (H -> C)',
                'Theta1 (H -> F)',
                'Theta2 (C -> F)', 'Gamma1', 'Gamma2', 'Gamma3',
                'Gamma4', 'Mu1', 'Mu2', 'Eta']
 
     print(parameters.shape)
 
+    RED = '#FFA0A0'
+    periods_colors = [RED, # 13/3/2020
+                      None, # 4/5/2020 leaving lockdown
+                      None, # 8/6 leaving lockdown
+                      None, # 25/7 Masks and social distancing
+                      None, # 24/9 new coronavirus restrictions were announced by the government. BIZARRE !!!
+                      None, # 6/10 : Beginning of second wave and light lockdown
+                      RED, # 2/11 : Top of second wave, full lockdown. :
+                      RED, # 1/12 ???
+                      None, # 27/1/2021 of January 2021: ???
+                      None, # 1/3 : soft lockdown
+                      RED, # 27/3 : lockdown
+                      None # 11/5/2021 : Leaving lockdown
+                      ]
 
-
-    for i in range(len(periods_in_days)):
-        print(i, dates[i+1], periods_in_days[i])
+    # for i in range(len(periods_in_days)):
+    #     print(i, dates[i+1], periods_in_days[i])
 
     period_starts = [(p[0] + p[1])//2 for p in periods_in_days]
 
-    fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots(figsize=(10,7))
+
+    for ndx_p, p in enumerate(periods_in_days):
+        if periods_colors[ndx_p]:
+            ax1.axvspan(p[0], p[1]-1, color=periods_colors[ndx_p], zorder=0) # , alpha=0.5)
 
     """
     https://fr.wikipedia.org/wiki/Pand%C3%A9mie_de_Covid-19_en_Belgique
@@ -854,37 +894,43 @@ def graph_synthesis(parameters, periods_in_days, dates, rows):
     18 mars 2020 : Confinement généralisé
     4 mai 2020 : Déconfinement progressif
     """
-    s = (date(2020,3,14) - dates[0]).days
-    e = (date(2020,5,4) - dates[0]).days
-    ax1.axvspan(s, e, color='red', alpha=0.5)
+    # s = (date(2020,3,14) - dates[0]).days
+    # e = (date(2020,5,4) - dates[0]).days
+    # ax1.axvspan(s, e, color='red', alpha=0.5)
 
     """
     19 octobre 2020 : un couvre-feu est mis en place de minuit à 5 h du matin5 ; un couvre-feu de 1h à 6h était déjà appliqué dans les provinces du Brabant Wallon et du Luxembourg depuis respectivement les 13 et 14 octobre146. De plus, les bars et restaurants sont à nouveau fermés ; les contacts rapprochés sont limités à 1 personne maximum ; les rassemblements privés sont limités à quatre personnes pendant deux semaines, toujours les mêmes ; les rassemblements sur la voie publique sont limités à quatre personnes maximum ; le télétravail redevient la règle6.
     2 novembre 2020 : nouveau confinement national
     27 novembre 2020 : le Comité de concertation prolonge le confinement national jusqu'au 31 janvier 2021
     """
-    s = (date(2020,10,19) - dates[0]).days
-    e = (date(2021,1,31) - dates[0]).days
-    ax1.axvspan(s, e, color='red', alpha=0.5)
+    # s = (date(2020,10,19) - dates[0]).days
+    # e = (date(2021,1,31) - dates[0]).days
+    # ax1.axvspan(s, e, color='red', alpha=0.5)
 
     plot_periods(plt, dates)
 
     u = ObsEnum.NUM_HOSPITALIZED
     ax2 = ax1.twinx()
-    ax2.plot(rows[:, u.value], "--") #, label = str(u) + " (real)")
+    ax2.plot(rows[:, u.value], "--", dashes=(10, 5), c='black') #, label = str(u) + " (real)")
 
     #plt.xticks([start for start, _ in periods_in_days] + [periods_in_days[-1][-1]], dates)
 
     for i, pname in enumerate(P_NAMES[:7]):
         if i == 0:
-            ax1.plot(period_starts, parameters[:,i], label=pname)
+            ax1.plot(period_starts, parameters[:,i], linewidth=2, label=pname, c='black')
         else:
             ax1.scatter(period_starts, parameters[:,i], label=pname)
 
 
+    ax1.set_ylabel("Parameters values")
+    ax2.set_ylabel("# hospitalized")
+
     ax2.legend()
     ax1.legend()
+    fig.tight_layout()
+    plt.savefig("img/periods_with_fit.png")
     plt.show()
+    exit()
 
 
 
@@ -904,8 +950,8 @@ if __name__ == "__main__":
     args = args_parser.parse_args()
 
     # --- Choice of execution ---
-    ALL_SCENARIOS = True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
-    EXECUTION = "NO_OPTIMISATION"#"GLOBAL_OPTIMISATION" #"LOCAL_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
+    ALL_SCENARIOS = False#False#True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
+    EXECUTION = "NO_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
     # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum absolute error,
     #                          followed by a local optimisation with the likelihood,
     #                          no use of initial parameters,
@@ -917,15 +963,24 @@ if __name__ == "__main__":
     #                          use of the initial parameters saved from a global optimisation,
     #                          very quick
     PARAMS_NOISE = 0#0.1 # percentage of random noise to apply to parameters (ideally used before starting a local optimisation) to prevent overfitting
-    WITH_VACCINATION = True#False # Whether we take the effects of vaccination into account
+    WITH_VACCINATION = True #False # Whether we take the effects of vaccination into account
     SAVE_CSV = False#True # Save experiment to a csv file (requires to first create a folder 'csv')
-    SAVE_GRAPH = True#True # whether the graphs should be saved
+    SAVE_GRAPH = True #True # whether the graphs should be saved
     IMAGE_FOLDER = "img/"  # folder in which graphs are saved
     GRAPH_FORMAT = "png" # format in which the graph should be saved
     FIGURE_SIZE = (10, 5) # size of the figures
     LAST_DATE_FOR_PREDICTION = date(2021, 8, 1) # date when the prediction should stop
                                                 # (pay attention to set one_dose_vaccination_forecasts
                                                 # and two_dose_vaccination_forecasts accordingly)
+    SHOW_PREDICTIONS = False
+
+    # Hypothesis 0: no vaccination
+    VACCINATION_HYPOTHESIS = 0
+    if WITH_VACCINATION:
+        # Hypothesis 1: 450 000 vaccines administered per week until the 1st of June and then 450 000 per week until the 1st of July
+        # Hypothesis 2: 450 000 vaccines administered per week until the 1st of June and then 550 000 per week until the 1st of July
+        # Hypothesis 3: 450 000 vaccines administered per week until the 1st of June and then 650 000 per week until the 1st of July
+        VACCINATION_HYPOTHESIS = 2 # 1, 2, 3
     EXPERIMENT = 1 # 1, 2 or 3
 
     if ALL_SCENARIOS:
@@ -942,11 +997,21 @@ if __name__ == "__main__":
     rows = np.array(observations)
     days = len(rows)
 
+
+    # print(rows[:,StateEnum.HOSPITALIZED.value])
+    # z = 1 - (rows[:,StateEnum.HOSPITALIZED.value] -  rows[:,StateEnum.CRITICAL.value]) / (1+rows[:,StateEnum.HOSPITALIZED.value])
+    # plt.plot(z)
+    # plt.ylim(0,0.040)
+    # plt.show()
+    # exit()
+
     # --- Initialisation of periods of similar measures ---
     dates = [observations.DATE.iloc[0].date(), date(2020, 3, 13), date(2020, 5, 4), date(2020, 6, 8),
              date(2020, 7, 25), date(2020, 9, 24), date(2020, 10, 6), date(2020, 11, 2),
              date(2020, 12, 1), date(2021, 1, 27), date(2021, 3, 1), date(2021, 3, 27),
              observations.DATE.iloc[-1].date()]
+
+
     # list of tuples (start, end) for each period with significantly distinctive covid-19 measures
     periods_in_days = periods_in_days(dates)
     periods_in_days = periods_in_days[1:] # we start fitting from the 2nd period to start with higher values
@@ -980,8 +1045,6 @@ if __name__ == "__main__":
                   [0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
                   #[0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
 
-    #parameters = [[0.007692325271739853, 0.1, 0.09887464104321311, 0.006425584157336797, 0.0430654244327903, 0.043436790517044715, 0.05945901639344263, 0.10370284387857026, 0.01714682710386275, 0.10101010101010101, 0.010638224405632857, 0.01305133011242865, 0.8315102604160682, 0.02204064425015183], [0.025857249031070357, 0.08035222830146109, 0.14305789766664806, 0.0056913187249469305, 0.015604726283987087, 0.009484199432928903, 0.015381846014005399, 0.09824561403508772, 0.06304249761590976, 0.09917750392749476, 0.041627037862451206, 0.07772451228999161, 0.5256436304514621, 0.0616757179515289], [0.4149184069266358, 0.010451870145798256, 0.08611283018472003, 0.004270531178296848, 0.019211921448623152, 0.0247781445821075, 0.0572767394430687, 0.09832848104082467, 0.03918064765339405, 0.08520086552409857, 0.010680261163839567, 0.2229885363675479, 0.671713804510069, 0.06899169252387011], [0.616389439478218, 0.002835672455198968, 0.032600436240726796, 0.00917069922905305, 0.04075448337365765, 0.00930520752672252, 0.03566031460009921, 0.10000679693133147, 0.059087926179180995, 0.0804969816711893, 0.020238553525022872, 0.28558518076928174, 0.1050009698503192, 0.2658616689878186], [0.00801392542675861, 0.007833308669648096, 0.02631882281805921, 0.01696119945906511, 0.05260684303541565, 0.0061313053800835056, 0.032411054593439535, 0.16567973871659233, 0.010035629363839444, 0.09390307247402158, 0.048399237006624615, 0.25190836790338295, 0.7301013436886459, 0.24755435270858928], [0.03898026125252241, 0.03599311520556338, 0.03258213742781488, 0.014568271767961839, 0.02951838848202066, 0.021200073558147205, 0.03003503756933043, 0.11513755227708267, 0.01503036848168774, 0.041894536455804765, 0.01478747490994736, 0.18296097366524577, 0.6017890007103931, 0.3085006966867723], [0.30245547338601536, 0.00104398910346318, 0.02388199678748723, 0.016622722151914196, 0.03619347549821561, 0.02355291349706393, 0.0466734353389126, 0.11558716700663274, 0.05300193718272426, 0.0974439270005784, 0.03531372328085223, 0.3102026909221759, 0.19316523083544415, 0.14140443949345627], [0.39544902947920985, 0.0015612665693203263, 0.0809835425457402, 0.011704770217228178, 0.022832315117678206, 0.027344620511464475, 0.03708983848606527, 0.1707577235973873, 0.03923873356569179, 0.07014288272298949, 0.012536627904618505, 0.23932188332376633, 0.7602816051673658, 0.14880914065157935], [0.5132183297181763, 0.002016622897791932, 0.26343811416486107, 0.005927397121597503, 0.02772111417436935, 0.01761770550407263, 0.033302050864497695, 0.14351716840655765, 0.06396342558337442, 0.08755752705698597, 0.040838526612980756, 0.4792968893761258, 0.3102469817930291, 0.18152491291465017], [0.12037444759505331, 0.0034015769019903885, 0.050401603843981235, 0.010287317447150614, 0.032628677559337675, 0.008125692634214594, 0.02362435643144153, 0.16438936661773115, 0.06133539415768126, 0.05699178247123524, 0.025113841337835223, 0.28506352841277977, 0.7536746317536662, 0.14141737386760944], [0.16320673065123745, 0.0014706588273997391, 0.03356924419147485, 0.012969734006323104, 0.05357997192849656, 0.00882354419021357, 0.023489037521424914, 0.11524122004046258, 0.057078762823673274, 0.09896556903003399, 0.026905183917251756, 0.2308544269929279, 0.7848713516887519, 0.14257592826233406]]
-    #parameters = [[0.0368071954861684, 0.0947136216604078, 0.25, 0.003752780379383316, 0.04423024972645248, 0.037797162293680464, 0.05945901639344263, 0.09824561403508772, 0.016287712342568227, 0.08201438601089536, 0.013487299017686583, 0.0, 0.5509806531155148, 0.021219292887969306], [0.025753799370898126, 0.08780801694347487, 0.2817088057291152, 0.0022064093968364377, 0.017793105256140546, 0.007335201727075423, 0.02976609184724026, 0.10411377596451053, 0.07164073661210682, 0.09788708346025612, 0.01494303527330993, 0.39104944840712236, 0.22724323080809966, 0.04205775958241245], [0.5424673171154226, 0.012041815962769204, 0.47107430542939255, 0.000928602834629841, 0.016810759276582526, 0.02338371876913798, 0.05593289617224355, 0.11076009992525093, 0.03505246443807774, 0.06683748414024336, 0.02291083713677653, 0.10074624891757211, 0.5360592386334477, 0.0292415420145173], [0.6605753052863856, 0.0038011359511190873, 0.25090485036768057, 0.002011697791772289, 0.04264468415226461, 0.00704536963867784, 0.0512415916060523, 0.09838532309572191, 0.08717061410336059, 0.08180899031437865, 0.019107852561926875, 0.0, 0.2501993906466913, 0.18849727804277222], [0.03999740906086857, 0.00934177015262666, 0.4000243995156083, 0.0023288254971122095, 0.04294998578131993, 0.006830009793411213, 0.01463526484227726, 0.19903265395418573, 0.02834969119820185, 0.06075466685121352, 0.02870768286051557, 0.006157414536842654, 0.8105694826565247, 0.0983926774452747], [0.4186580919601362, 0.018442968680155086, 0.2669477993514437, 0.0031481943305686423, 0.032550890235224825, 0.014100722878022335, 0.05205225248874413, 0.11994451044272961, 0.009965705202415362, 0.04489571663123679, 0.01294706171633347, 0.0721225587608437, 0.48632040126573256, 0.2286471475595283], [0.08651285320548766, 0.0034654560971087212, 0.7473151055683174, 0.003027432538097366, 0.027159672526540495, 0.028270529661879335, 0.03472516205319963, 0.10710066095351238, 0.039937558098581495, 0.0726095050462576, 0.04987085538568064, 0.07089041043549169, 0.6283989101889674, 0.06661784461020526], [0.009016298864714167, 0.005662415357833059, 0.8205756239345372, 0.003569664891302773, 0.024542564815355716, 0.028563841958463877, 0.031395996862270015, 0.19787476769143253, 0.0420555412615009, 0.07913288528408367, 0.038876689928366355, 0.22677571260453536, 0.6866351970827508, 0.07481425117611465], [0.5594144314877073, 0.003561091641989854, 0.4779388496374496, 0.004623419457838764, 0.022104213545403963, 0.013069894847871626, 0.04576144201282678, 0.17308465879625834, 0.06751350038897565, 0.05248513626449979, 0.01677854803594977, 0.09012934782162374, 0.4942198815832807, 0.16663231948284013], [0.412229497771733, 0.003806019583746558, 0.25, 0.0038238206029543617, 0.04069695930175802, 0.01129352585584758, 0.01807712557715599, 0.10440370638784201, 0.04644613420194441, 0.08267650670671549, 0.016963714734154055, 0.3458316325136745, 0.7661122035587778, 0.09551918166695672], [0.08676172270862999, 0.0036686875717889087, 0.3436439930320918, 0.004991204096852537, 0.05444478053281812, 0.007005483330034338, 0.026691155049127373, 0.13985758111866592, 0.049123251223763015, 0.09769924053825457, 0.04616678401839174, 0.10450332615521248, 0.893487884757076, 0.09899845023164483]]
     parameters = np.array(parameters)
 
 
@@ -1086,6 +1149,7 @@ if __name__ == "__main__":
 
     NON_PREDICTED_PERIODS = args.non_prediction
 
+
     if not ALL_SCENARIOS:
         # --- Instantiation of the model ---
         ms = SEIR_HCD(stocha = False, constantParams = constantParams)
@@ -1095,6 +1159,7 @@ if __name__ == "__main__":
         sres = np.array([])
         i = 0
         save_params = []
+        save_ic = []
 
         # Running the model means possible doing parameter fitting on a
         # period and always make prediction for that period.
@@ -1118,6 +1183,7 @@ if __name__ == "__main__":
             end = start + period_duration
             ms.set_vaccination(vaccination_data.iloc[start:end], one_dose_efficacy, two_dose_efficacy)
             sres_temp = None
+            save_ic.append(ms.initialConditionsAsArray)
             if EXECUTION == "GLOBAL_OPTIMISATION":
                 optimal_params = ms.fit_parameters(data = rows[period[0]:period[1], :], params = params, is_global_optimisation = True, params_random_noise = PARAMS_NOISE) # parameters[i])
                 save_params.append(list(optimal_params.values()))
@@ -1167,12 +1233,14 @@ if __name__ == "__main__":
         print(f"Predictin start {start}")
 
         sres_temp = None
+
         if args.stability:
             print("S0, E0, A0, SP0, H0, C0, F0, R0")
             print(init_cond)
             # We run this on the latest parameters
-            stability(ms, init_cond, parameters[-1], 1, 0.1)
-            stability(ms, init_cond, parameters[-1], 2, 0.1)
+            #stability(ms, init_cond, period[1] - period[0], save_params[-1], 1, 0.1)
+            stability(ms, save_ic[-1], period[1] - period[0], save_params[-1], 1, 0.1)
+            stability(ms, save_ic[-1], period[1] - period[0], save_params[-1], 2, 0.1)
             plt.show()
             exit()
         elif args.minimum:
@@ -1251,8 +1319,10 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+
     plot_periods(plt, dates)
     plt.legend(loc='upper left')
     if SAVE_GRAPH:
@@ -1276,8 +1346,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     plt.legend(loc='upper left')
@@ -1302,8 +1373,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     plt.legend(loc='upper left')
@@ -1327,8 +1399,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     if SAVE_GRAPH:
@@ -1351,8 +1424,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     if SAVE_GRAPH:
@@ -1375,8 +1449,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     if SAVE_GRAPH:
@@ -1399,8 +1474,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     if SAVE_GRAPH:
