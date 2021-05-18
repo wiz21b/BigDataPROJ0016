@@ -951,7 +951,7 @@ if __name__ == "__main__":
 
     # --- Choice of execution ---
     ALL_SCENARIOS = False#False#True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
-    EXECUTION = "LOCAL_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
+    EXECUTION = "NO_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
     # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum absolute error,
     #                          followed by a local optimisation with the likelihood,
     #                          no use of initial parameters,
@@ -968,7 +968,8 @@ if __name__ == "__main__":
     SAVE_GRAPH = True #True # whether the graphs should be saved
     IMAGE_FOLDER = "img/"  # folder in which graphs are saved
     GRAPH_FORMAT = "png" # format in which the graph should be saved
-    LAST_DATE_FOR_PREDICTION = date(2021, 7, 1) # date when the prediction should stop
+    FIGURE_SIZE = (8, 6) # size of the figures
+    LAST_DATE_FOR_PREDICTION = date(2021, 8, 1) # date when the prediction should stop
                                                 # (pay attention to set one_dose_vaccination_forecasts
                                                 # and two_dose_vaccination_forecasts accordingly)
     SHOW_PREDICTIONS = False
@@ -980,13 +981,16 @@ if __name__ == "__main__":
         # Hypothesis 2: 450 000 vaccines administered per week until the 1st of June and then 550 000 per week until the 1st of July
         # Hypothesis 3: 450 000 vaccines administered per week until the 1st of June and then 650 000 per week until the 1st of July
         VACCINATION_HYPOTHESIS = 2 # 1, 2, 3
+    EXPERIMENT = 1 # 1, 2 or 3
 
     if ALL_SCENARIOS:
-        VACCINATION_HYPOTHESES = [1, 2, 3]
-        GRAPH_PREFIX = "all_predictions"
+        EXPERIMENTS = [1, 2, 3]
+        GRAPH_PREFIX = "All_Predictions"
     else:
-        GRAPH_PREFIX = EXECUTION + "_Vaccination_Hypothesis_" + str(VACCINATION_HYPOTHESIS) # prefix for naming the graph (should concisely describe the execution tested this time)
+        GRAPH_PREFIX = "Experiment#" + str(EXPERIMENT) # prefix for naming the graph (should concisely describe the execution tested this time)
 
+    if not WITH_VACCINATION:
+        GRAPH_PREFIX = "WithoutVaccination"
 
     # --- Loading data ----
     observations = load_model_data()
@@ -1027,6 +1031,7 @@ if __name__ == "__main__":
     IC = [S0, E0, A0, SP0, H0, C0, F0, R0]
 
     # --- Optimal parameters from the global optimization ---
+
     parameters = [[0.04417909904136072, 0.16666666666666666, 0.25, 0.002607505957964171, 0.04506954288814314, 0.04000391524885744, 0.05945901639344263, 0.09824561403508772, 0.001, 0.09442629590963579, 0.010625, 0.008623746131208974, 0.5360234479440541, 0.017051185637991156],
                   [0.04271173866387728, 0.17873099205973036, 0.48077474701234385, 0.001496307466062664, 0.01795084287535577, 0.01020473022643667, 0.026448479893415137, 0.09981598389810127, 0.06416735909449253, 0.10101010101010101, 0.0329622386461159, 0.4348792278828317, 0.43971725559769304, 0.019722199406887207],
                   [0.18896851158715078, 0.18706606005630683, 0.28005015665764743, 0.0006069235077946143, 0.019381691800506796, 0.021534103103064736, 0.05018119923827652, 0.1919882087569018, 0.030157869507219617, 0.08022611771744065, 0.04912210183222269, 0.011006785812258257, 0.7708926655590773, 0.015971950177058068],
@@ -1039,6 +1044,7 @@ if __name__ == "__main__":
                   [0.3495513813402461, 0.1757375667186865, 0.7419412492861541, 0.0023838733095558067, 0.04147979701047269, 0.007598013172891928, 0.023814050319704832, 0.17290275121104545, 0.04339814744541998, 0.07762910865562846, 0.015252411513868417, 0.018980153002800135, 0.3154897098049746, 0.19559589620971338],
                   [0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
                   #[0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]]
+
     parameters = np.array(parameters)
 
 
@@ -1106,6 +1112,16 @@ if __name__ == "__main__":
         6.96310265e-02, 5.65846426e-02, 4.42231908e-02]])
     parameters = parameters.transpose()
     """
+    experiment_params = [0.22149298682627025, 0.18134490480308654, 0.5682789905320313, 0.002802470215709582, 0.03667414309882367, 0.007785770780693508, 0.025423683520389824, 0.18454088574224045, 0.07432265951138227, 0.05353125003555775, 0.0422617939281555, 0.10336965932369303, 0.5502838931807575, 0.0841251336388422]
+
+    if EXPERIMENT == 1:
+        experiment_params[0] *= 1
+    elif EXPERIMENT == 2:
+        experiment_params[0] = parameters[5, 0] * 1.7 #0.1794110822420536 * 1.7
+    elif EXPERIMENT == 3:
+        experiment_params[0] *= 1.65
+    else:
+        raise ValueError(f"No experiment #{EXPERIMENT} exists...")
 
     # --- Parameters to keep constant across periods (their value is taken from get_initial_parameters) ---
     # constantParamNames = ("Rho", "Sigma", "Gamma1", "Gamma2", "Gamma3", "Gamma4")  # Must keep the same order of parameters !
@@ -1117,25 +1133,19 @@ if __name__ == "__main__":
     constantParams = {}
 
     # --- Load vaccination information ---
-    if VACCINATION_HYPOTHESIS == 1:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:5250000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
-    elif VACCINATION_HYPOTHESIS == 2:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:5750000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
-    elif VACCINATION_HYPOTHESIS == 3:
-        one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, LAST_DATE_FOR_PREDICTION:6250000}
-        two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, LAST_DATE_FOR_PREDICTION:3000000}
-    elif VACCINATION_HYPOTHESIS != 0:
-        raise ValueError(f'Unknown Vaccination Hypothesis #{VACCINATION_HYPOTHESIS}...')
+    # Hypothesis: 450 000 vaccines administered per week until the 1st of June,
+    # then 550 000 per week until the 1st of July,
+    # and then 650 000 per week until the 1st of August.
+    one_dose_vaccination_forecasts = {date(2021, 6, 1):4300000, date(2021, 7, 1):5500000, LAST_DATE_FOR_PREDICTION:7500000}
+    two_dose_vaccination_forecasts = {date(2021, 6, 1):1700000, date(2021, 7, 1):3200000, LAST_DATE_FOR_PREDICTION:4450000}
 
     one_dose_efficacy = 0
     two_dose_efficacy = 0
     if WITH_VACCINATION:
         one_dose_efficacy = 0.65
         two_dose_efficacy = 0.8
-        vaccination_data = load_vaccination_data(one_dose_vaccination_forecasts, two_dose_vaccination_forecasts)
-    vaccination_effect_delay = 14 # hypothesis: 14 days before the vaccine takes effect
+    vaccination_data = load_vaccination_data(one_dose_vaccination_forecasts, two_dose_vaccination_forecasts)
+    vaccination_effect_delay = 14  # hypothesis: 14 days before the vaccine takes effect
 
     NON_PREDICTED_PERIODS = args.non_prediction
 
@@ -1242,40 +1252,42 @@ if __name__ == "__main__":
             plt.show()
             exit()
 
-        elif EXECUTION == "GLOBAL_OPTIMISATION" or EXECUTION == "LOCAL_OPTIMISATION":
-            sres_temp = ms.predict(end = n_prediction_days)
+        #elif EXECUTION == "GLOBAL_OPTIMISATION" or EXECUTION == "LOCAL_OPTIMISATION":
+            #sres_temp = ms.predict(end = n_prediction_days)
         else:
-            sres_temp = ms.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, parameters[i - 1])))
+            sres_temp = ms.predict(end = n_prediction_days, parameters = dict(zip(ms._paramNames, experiment_params))) #parameters[i - 1])))
 
         sres = np.concatenate((sres, sres_temp))
 
     else:
-        data = np.array([])
-        for vaccination_hypothesis in VACCINATION_HYPOTHESES:
-            csv_path = "csv/" + EXECUTION + "_Vaccination_Hypothesis_" + str(vaccination_hypothesis) + '.csv'
+        #data = np.array([])
+        csv_path = "csv/" + "WithoutVaccination" + '.csv'
+        csv_data = pd.read_csv(csv_path).to_numpy()
+        data = csv_data[np.newaxis, ...]
+        for experiment in EXPERIMENTS:
+            csv_path = "csv/" + "Experiment#" + str(experiment) + '.csv'
             csv_data = pd.read_csv(csv_path).to_numpy()
-            if not data.any():
-                data = csv_data[np.newaxis, ...]
-            else:
-                data = np.append(data, csv_data[np.newaxis, ...], axis=0)
-
+            #if not data.any():
+                #data = csv_data[np.newaxis, ...]
+            #else:
+            data = np.append(data, csv_data[np.newaxis, ...], axis=0)
         all_predictions = data[:, :, 2:]
         all_vaccination_data = data[:, :, 0:2]
 
     dates += list(one_dose_vaccination_forecasts.keys())
 
     # --- Plot graphs ---
-    plt.figure(figsize=(8,6),dpi=200)
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Vaccination')
     if ALL_SCENARIOS:
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(all_vaccination_data[hypothesis-1, :, 0], label = f"Cumulative Number of Partially Vaccinated People - Hypothesis #{hypothesis}")
-            plt.plot(all_vaccination_data[hypothesis-1, :, 1], label = f"Cumulative Number of Fully Vaccinated People - Hypothesis #{hypothesis}")
+        #for experiment in EXPERIMENTS:
+        plt.plot(all_vaccination_data[1, :, 0], label = f"Cumulative Number of Partially Vaccinated People - Hypothesis #{experiment}")
+        plt.plot(all_vaccination_data[1, :, 1], label = f"Cumulative Number of Fully Vaccinated People - Hypothesis #{experiment}")
     else:
-        plt.plot(vaccination_data.VACCINATED_ONCE, label = f"Cumulative Number of Partially Vaccinated People - Hypothesis #{VACCINATION_HYPOTHESIS}")
-        plt.plot(vaccination_data.VACCINATED_TWICE, label = f"Cumulative Number of Fully Vaccinated People - Hypothesis #{VACCINATION_HYPOTHESIS}")
+        plt.plot(vaccination_data.VACCINATED_ONCE, label = f"Cumulative Number of Partially Vaccinated People")
+        plt.plot(vaccination_data.VACCINATED_TWICE, label = f"Cumulative Number of Fully Vaccinated People")
     plot_periods(plt, dates)
-    plt.legend()
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-vaccination.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
@@ -1291,17 +1303,19 @@ if __name__ == "__main__":
         print(last_fitted_day, len(sres))
 
 
-    plt.figure( figsize=(8,6),dpi=200)
-    plt.title('Hospitalised Per Day')
+    plt.figure(figsize=FIGURE_SIZE)
+    plt.title('Hospitalized Per Day')
     t = StateEnum.DHDT
     u = ObsEnum.DHDT
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + f" - Hypothesis #{hypothesis}")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1310,23 +1324,25 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
-    plt.legend()
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-dhdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure(figsize=(8,6),dpi=200)
-    plt.title('Hospitalised')
+    plt.figure(figsize=FIGURE_SIZE)
+    plt.title('Hospitalized')
     t = StateEnum.HOSPITALIZED
     u = ObsEnum.NUM_HOSPITALIZED
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
 
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-             all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1335,12 +1351,12 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
-    plt.legend()
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-hospitalised.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
 
-    plt.figure(figsize=(8,6),dpi=200)
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Critical')
     t = StateEnum.CRITICAL
     u = ObsEnum.NUM_CRITICAL
@@ -1348,10 +1364,12 @@ if __name__ == "__main__":
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-             all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1360,22 +1378,24 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
-    plt.legend()
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-critical.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
 
-    plt.figure(figsize=(8,6),dpi=200)
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Fatalities')
     t = StateEnum.FATALITIES
     u = ObsEnum.NUM_FATALITIES
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-            all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1384,21 +1404,24 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-fatalities.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure(figsize=(8,6),dpi=200)
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Fatalities Per Day')
     t = StateEnum.DFDT
     u = ObsEnum.DFDT
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-             all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1407,21 +1430,24 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-dfdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure(figsize=(8,6),dpi=200)
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Number of People Tested Per Day')
     t = StateEnum.DTESTEDDT
     u = ObsEnum.NUM_TESTED
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1430,21 +1456,24 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-dtesteddt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure(figsize=(8,6),dpi=200)
+    plt.figure(figsize=FIGURE_SIZE)
     plt.title('Number of People Tested Positive Per Day')
     t = StateEnum.DTESTEDPOSDT
     u = ObsEnum.NUM_POSITIVE
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
-        for hypothesis in VACCINATION_HYPOTHESES:
-            plt.plot(range(last_fitted_day, len(all_predictions[hypothesis-1])),
-                     all_predictions[hypothesis-1, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{hypothesis}")
+                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+        plt.plot(range(last_fitted_day),
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+        for experiment in EXPERIMENTS:
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
+                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1453,6 +1482,7 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-dtestedposdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
