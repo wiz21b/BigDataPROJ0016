@@ -854,38 +854,38 @@ def graph_synthesis(parameters, periods_in_days, dates, rows):
 
         print(f"{i+1} & {d} & {d2} & {MOTIVES[i]} \\\\")
 
-    P_NAMES = ["beta", "Rho (E -> A)", "Sigma (A -> SP)", "Tau (SP -> H)", 'Delta (H -> C)',
+    P_NAMES = ["Beta (S -> E)", "Rho (E -> A)", "Sigma (A -> SP)", "Tau (SP -> H)", 'Delta (H -> C)',
                'Theta1 (H -> F)',
                'Theta2 (C -> F)', 'Gamma1', 'Gamma2', 'Gamma3',
                'Gamma4', 'Mu1', 'Mu2', 'Eta']
 
     print(parameters.shape)
 
-    periods_colors = ['red', # 13/3/2020
+    RED = '#FFA0A0'
+    periods_colors = [RED, # 13/3/2020
                       None, # 4/5/2020 leaving lockdown
                       None, # 8/6 leaving lockdown
-                      'yellow', # 25/7 Masks and social distancing
+                      None, # 25/7 Masks and social distancing
                       None, # 24/9 new coronavirus restrictions were announced by the government. BIZARRE !!!
-                      'yellow', # 6/10 : Beginning of second wave and light lockdown
-                      'red', # 2/11 : Top of second wave, full lockdown. :
-                      'red', # 1/12 ???
+                      None, # 6/10 : Beginning of second wave and light lockdown
+                      RED, # 2/11 : Top of second wave, full lockdown. :
+                      RED, # 1/12 ???
                       None, # 27/1/2021 of January 2021: ???
-                      'yellow', # 1/3 : soft lockdown
-                      'red', # 27/3 : lockdown
+                      None, # 1/3 : soft lockdown
+                      RED, # 27/3 : lockdown
                       None # 11/5/2021 : Leaving lockdown
                       ]
 
-
-    for i in range(len(periods_in_days)):
-        print(i, dates[i+1], periods_in_days[i])
+    # for i in range(len(periods_in_days)):
+    #     print(i, dates[i+1], periods_in_days[i])
 
     period_starts = [(p[0] + p[1])//2 for p in periods_in_days]
 
-    fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots(figsize=(10,7))
 
     for ndx_p, p in enumerate(periods_in_days):
         if periods_colors[ndx_p]:
-            ax1.axvspan(p[0], p[1]-1, color=periods_colors[ndx_p], alpha=0.5)
+            ax1.axvspan(p[0], p[1]-1, color=periods_colors[ndx_p], zorder=0) # , alpha=0.5)
 
     """
     https://fr.wikipedia.org/wiki/Pand%C3%A9mie_de_Covid-19_en_Belgique
@@ -911,20 +911,26 @@ def graph_synthesis(parameters, periods_in_days, dates, rows):
 
     u = ObsEnum.NUM_HOSPITALIZED
     ax2 = ax1.twinx()
-    ax2.plot(rows[:, u.value], "--") #, label = str(u) + " (real)")
+    ax2.plot(rows[:, u.value], "--", dashes=(10, 5), c='black') #, label = str(u) + " (real)")
 
     #plt.xticks([start for start, _ in periods_in_days] + [periods_in_days[-1][-1]], dates)
 
     for i, pname in enumerate(P_NAMES[:7]):
         if i == 0:
-            ax1.plot(period_starts, parameters[:,i], label=pname)
+            ax1.plot(period_starts, parameters[:,i], linewidth=2, label=pname, c='black')
         else:
             ax1.scatter(period_starts, parameters[:,i], label=pname)
 
 
+    ax1.set_ylabel("Parameters values")
+    ax2.set_ylabel("# hospitalized")
+
     ax2.legend()
     ax1.legend()
+    fig.tight_layout()
+    plt.savefig("img/periods_with_fit.png")
     plt.show()
+    exit()
 
 
 
@@ -957,14 +963,16 @@ if __name__ == "__main__":
     #                          use of the initial parameters saved from a global optimisation,
     #                          very quick
     PARAMS_NOISE = 0#0.1 # percentage of random noise to apply to parameters (ideally used before starting a local optimisation) to prevent overfitting
-    WITH_VACCINATION = True#False # Whether we take the effects of vaccination into account
+    WITH_VACCINATION = True #False # Whether we take the effects of vaccination into account
     SAVE_CSV = False#True # Save experiment to a csv file (requires to first create a folder 'csv')
-    SAVE_GRAPH = False#True # whether the graphs should be saved
+    SAVE_GRAPH = True #True # whether the graphs should be saved
     IMAGE_FOLDER = "img/"  # folder in which graphs are saved
     GRAPH_FORMAT = "png" # format in which the graph should be saved
     LAST_DATE_FOR_PREDICTION = date(2021, 7, 1) # date when the prediction should stop
                                                 # (pay attention to set one_dose_vaccination_forecasts
                                                 # and two_dose_vaccination_forecasts accordingly)
+    SHOW_PREDICTIONS = False
+
     # Hypothesis 0: no vaccination
     VACCINATION_HYPOTHESIS = 0
     if WITH_VACCINATION:
@@ -1297,8 +1305,10 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+
     plot_periods(plt, dates)
     plt.legend()
     if SAVE_GRAPH:
@@ -1320,8 +1330,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     plt.legend()
@@ -1344,8 +1355,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     plt.legend()
@@ -1367,8 +1379,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     if SAVE_GRAPH:
@@ -1389,8 +1402,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     if SAVE_GRAPH:
@@ -1411,8 +1425,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     if SAVE_GRAPH:
@@ -1433,8 +1448,9 @@ if __name__ == "__main__":
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
-        plt.plot(range(last_fitted_day, len(sres)),
-                 sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
+        if SHOW_PREDICTIONS:
+            plt.plot(range(last_fitted_day, len(sres)),
+                     sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
     if SAVE_GRAPH:
