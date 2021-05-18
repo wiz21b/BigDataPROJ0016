@@ -580,8 +580,8 @@ class SEIR_HCD(Model):
     """
     def predict(self, start = 0, end = None, parameters = None):
 
-        print("PREDICT PARAMS", start, end, parameters)
-        print("PREDICT IC", self._initialConditions)
+        # print("PREDICT PARAMS", start, end, parameters)
+        # print("PREDICT IC", self._initialConditions)
 
         if not(end):
             end = len(self._data)
@@ -951,7 +951,7 @@ if __name__ == "__main__":
 
     # --- Choice of execution ---
     ALL_SCENARIOS = False#False#True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
-    EXECUTION = "NO_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
+    EXECUTION = "LOCAL_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
     # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum absolute error,
     #                          followed by a local optimisation with the likelihood,
     #                          no use of initial parameters,
@@ -1265,7 +1265,7 @@ if __name__ == "__main__":
     dates += list(one_dose_vaccination_forecasts.keys())
 
     # --- Plot graphs ---
-    plt.figure()
+    plt.figure(figsize=(8,6),dpi=200)
     plt.title('Vaccination')
     if ALL_SCENARIOS:
         for hypothesis in VACCINATION_HYPOTHESES:
@@ -1277,7 +1277,7 @@ if __name__ == "__main__":
     plot_periods(plt, dates)
     plt.legend()
     if SAVE_GRAPH:
-        plt.savefig('{}{}-vaccination.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
+        plt.savefig('{}{}-vaccination.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
 
 
@@ -1291,11 +1291,11 @@ if __name__ == "__main__":
         print(last_fitted_day, len(sres))
 
 
-    plt.figure()
+    plt.figure( figsize=(8,6),dpi=200)
     plt.title('Hospitalised Per Day')
     t = StateEnum.DHDT
     u = ObsEnum.DHDT
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + f" - Hypothesis #{hypothesis}")
@@ -1315,11 +1315,11 @@ if __name__ == "__main__":
         plt.savefig('{}{}-dhdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=(8,6),dpi=200)
     plt.title('Hospitalised')
     t = StateEnum.HOSPITALIZED
     u = ObsEnum.NUM_HOSPITALIZED
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
 
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
@@ -1337,15 +1337,15 @@ if __name__ == "__main__":
     plot_periods(plt, dates)
     plt.legend()
     if SAVE_GRAPH:
-        plt.savefig('{}{}-hospitalised.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
+        plt.savefig('{}{}-hospitalised.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=(8,6),dpi=200)
     plt.title('Critical')
     t = StateEnum.CRITICAL
     u = ObsEnum.NUM_CRITICAL
     #plt.plot(sres[:, t.value], label = str(t) + " (model)")
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
              all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1362,14 +1362,14 @@ if __name__ == "__main__":
     plot_periods(plt, dates)
     plt.legend()
     if SAVE_GRAPH:
-        plt.savefig('{}{}-critical.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
+        plt.savefig('{}{}-critical.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=(8,6),dpi=200)
     plt.title('Fatalities')
     t = StateEnum.FATALITIES
     u = ObsEnum.NUM_FATALITIES
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
             all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1388,11 +1388,11 @@ if __name__ == "__main__":
         plt.savefig('{}{}-fatalities.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=(8,6),dpi=200)
     plt.title('Fatalities Per Day')
     t = StateEnum.DFDT
     u = ObsEnum.DFDT
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
              all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1411,11 +1411,11 @@ if __name__ == "__main__":
         plt.savefig('{}{}-dfdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=(8,6),dpi=200)
     plt.title('Number of People Tested Per Day')
     t = StateEnum.DTESTEDDT
     u = ObsEnum.NUM_TESTED
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1434,11 +1434,11 @@ if __name__ == "__main__":
         plt.savefig('{}{}-dtesteddt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=(8,6),dpi=200)
     plt.title('Number of People Tested Positive Per Day')
     t = StateEnum.DTESTEDPOSDT
     u = ObsEnum.NUM_POSITIVE
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)")
