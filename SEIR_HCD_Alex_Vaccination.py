@@ -950,7 +950,7 @@ if __name__ == "__main__":
     args = args_parser.parse_args()
 
     # --- Choice of execution ---
-    ALL_SCENARIOS = False#False#True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
+    ALL_SCENARIOS = True#False#True # Whether to plot the graphs of all scenarios (requires to have them saved first into csv files) or just one
     EXECUTION = "NO_OPTIMISATION" # "GLOBAL_OPTIMISATION" # "LOCAL_OPTIMISATION" # "NO_OPTIMISATION"
     # "GLOBAL_OPTIMISATION" -> Optimisation by differential evolution via minimum absolute error,
     #                          followed by a local optimisation with the likelihood,
@@ -963,7 +963,7 @@ if __name__ == "__main__":
     #                          use of the initial parameters saved from a global optimisation,
     #                          very quick
     PARAMS_NOISE = 0#0.1 # percentage of random noise to apply to parameters (ideally used before starting a local optimisation) to prevent overfitting
-    WITH_VACCINATION = True #False # Whether we take the effects of vaccination into account
+    WITH_VACCINATION = False # Whether we take the effects of vaccination into account
     SAVE_CSV = False#True # Save experiment to a csv file (requires to first create a folder 'csv')
     SAVE_GRAPH = True #True # whether the graphs should be saved
     IMAGE_FOLDER = "img/"  # folder in which graphs are saved
@@ -972,25 +972,18 @@ if __name__ == "__main__":
     LAST_DATE_FOR_PREDICTION = date(2021, 8, 1) # date when the prediction should stop
                                                 # (pay attention to set one_dose_vaccination_forecasts
                                                 # and two_dose_vaccination_forecasts accordingly)
-    SHOW_PREDICTIONS = False
+    SHOW_PREDICTIONS = True
 
-    # Hypothesis 0: no vaccination
-    VACCINATION_HYPOTHESIS = 0
-    if WITH_VACCINATION:
-        # Hypothesis 1: 450 000 vaccines administered per week until the 1st of June and then 450 000 per week until the 1st of July
-        # Hypothesis 2: 450 000 vaccines administered per week until the 1st of June and then 550 000 per week until the 1st of July
-        # Hypothesis 3: 450 000 vaccines administered per week until the 1st of June and then 650 000 per week until the 1st of July
-        VACCINATION_HYPOTHESIS = 2 # 1, 2, 3
-    EXPERIMENT = 1 # 1, 2 or 3
+    EXPERIMENT = 3 # 1, 2 or 3
 
     if ALL_SCENARIOS:
         EXPERIMENTS = [1, 2, 3]
-        GRAPH_PREFIX = "All_Predictions"
+        GRAPH_PREFIX = "AllPredictions"
     else:
         GRAPH_PREFIX = "Experiment#" + str(EXPERIMENT) # prefix for naming the graph (should concisely describe the execution tested this time)
 
-    if not WITH_VACCINATION:
-        GRAPH_PREFIX = "WithoutVaccination"
+        if not WITH_VACCINATION:
+            GRAPH_PREFIX = "WithoutVaccination_Experiment#" + str(EXPERIMENT)
 
     # --- Loading data ----
     observations = load_model_data()
@@ -1260,17 +1253,20 @@ if __name__ == "__main__":
         sres = np.concatenate((sres, sres_temp))
 
     else:
-        #data = np.array([])
-        csv_path = "csv/" + "WithoutVaccination" + '.csv'
-        csv_data = pd.read_csv(csv_path).to_numpy()
-        data = csv_data[np.newaxis, ...]
+        data = np.array([])
+        for experiment in EXPERIMENTS:
+            csv_path = "csv/" + "WithoutVaccination" + "_Experiment#" + str(experiment) + '.csv'
+            csv_data = pd.read_csv(csv_path).to_numpy()
+            if not data.any():
+                data = csv_data[np.newaxis, ...]
+            else:
+                data = np.append(data, csv_data[np.newaxis, ...], axis=0)
+
         for experiment in EXPERIMENTS:
             csv_path = "csv/" + "Experiment#" + str(experiment) + '.csv'
             csv_data = pd.read_csv(csv_path).to_numpy()
-            #if not data.any():
-                #data = csv_data[np.newaxis, ...]
-            #else:
             data = np.append(data, csv_data[np.newaxis, ...], axis=0)
+
         all_predictions = data[:, :, 2:]
         all_vaccination_data = data[:, :, 0:2]
 
@@ -1310,12 +1306,15 @@ if __name__ == "__main__":
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+                     all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model) - Without Vaccination")
         for experiment in EXPERIMENTS:
+            experiment2 = experiment + len(EXPERIMENTS) - 1
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment2])),
+                     all_predictions[experiment2, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
             plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
-                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
+                     all_predictions[experiment-1, last_fitted_day:, t.value], label = str(t) + " (model)" + f" - Hypothesis #{experiment}" + " - Without Vaccination")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1337,12 +1336,15 @@ if __name__ == "__main__":
 
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+                     all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model) - Without Vaccination")
         for experiment in EXPERIMENTS:
+            experiment2 = experiment + len(EXPERIMENTS) - 1
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment2])),
+                     all_predictions[experiment2, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
             plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
-                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
+                     all_predictions[experiment-1, last_fitted_day:, t.value], label = str(t) + " (model)" + f" - Hypothesis #{experiment}" + " - Without Vaccination")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1364,12 +1366,15 @@ if __name__ == "__main__":
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+                     all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model) - Without Vaccination")
         for experiment in EXPERIMENTS:
+            experiment2 = experiment + len(EXPERIMENTS) - 1
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment2])),
+                     all_predictions[experiment2, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
             plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
-                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
+                     all_predictions[experiment-1, last_fitted_day:, t.value], label = str(t) + " (model)" + f" - Hypothesis #{experiment}" + " - Without Vaccination")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1390,12 +1395,15 @@ if __name__ == "__main__":
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+                     all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model) - Without Vaccination")
         for experiment in EXPERIMENTS:
+            experiment2 = experiment + len(EXPERIMENTS) - 1
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment2])),
+                     all_predictions[experiment2, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
             plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
-                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
+                     all_predictions[experiment-1, last_fitted_day:, t.value], label = str(t) + " (model)" + f" - Hypothesis #{experiment}" + " - Without Vaccination")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1415,12 +1423,15 @@ if __name__ == "__main__":
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+                     all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model) - Without Vaccination")
         for experiment in EXPERIMENTS:
+            experiment2 = experiment + len(EXPERIMENTS) - 1
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment2])),
+                     all_predictions[experiment2, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
             plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
-                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
+                     all_predictions[experiment-1, last_fitted_day:, t.value], label = str(t) + " (model)" + f" - Hypothesis #{experiment}" + " - Without Vaccination")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1440,12 +1451,15 @@ if __name__ == "__main__":
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+                     all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model) - Without Vaccination")
         for experiment in EXPERIMENTS:
+            experiment2 = experiment + len(EXPERIMENTS) - 1
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment2])),
+                     all_predictions[experiment2, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
             plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
-                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
+                     all_predictions[experiment-1, last_fitted_day:, t.value], label = str(t) + " (model)" + f" - Hypothesis #{experiment}" + " - Without Vaccination")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1465,12 +1479,15 @@ if __name__ == "__main__":
     plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
-                     all_predictions[1, :last_fitted_day, t.value], label = str(t) + " (model)")
+                     all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
         plt.plot(range(last_fitted_day),
-                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model)" + " - Without Vaccination")
+                     all_predictions[0, :last_fitted_day, t.value], label = str(t) + " (model) - Without Vaccination")
         for experiment in EXPERIMENTS:
+            experiment2 = experiment + len(EXPERIMENTS) - 1
+            plt.plot(range(last_fitted_day, len(all_predictions[experiment2])),
+                     all_predictions[experiment2, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
             plt.plot(range(last_fitted_day, len(all_predictions[experiment])),
-                     all_predictions[experiment, last_fitted_day:, t.value], label = str(t) + " (prediction)" + f" - Hypothesis #{experiment}")
+                     all_predictions[experiment-1, last_fitted_day:, t.value], label = str(t) + " (model)" + f" - Hypothesis #{experiment}" + " - Without Vaccination")
     else:
         plt.plot(range(last_fitted_day),
                  sres[:last_fitted_day, t.value], label = str(t) + " (model)")
