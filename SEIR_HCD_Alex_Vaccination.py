@@ -580,8 +580,8 @@ class SEIR_HCD(Model):
     """
     def predict(self, start = 0, end = None, parameters = None):
 
-        print("PREDICT PARAMS", start, end, parameters)
-        print("PREDICT IC", self._initialConditions)
+        # print("PREDICT PARAMS", start, end, parameters)
+        # print("PREDICT IC", self._initialConditions)
 
         if not(end):
             end = len(self._data)
@@ -968,7 +968,7 @@ if __name__ == "__main__":
     SAVE_GRAPH = True #True # whether the graphs should be saved
     IMAGE_FOLDER = "img/"  # folder in which graphs are saved
     GRAPH_FORMAT = "png" # format in which the graph should be saved
-    FIGURE_SIZE = (10, 5) # size of the figures
+    FIGURE_SIZE = (8, 6) # size of the figures
     LAST_DATE_FOR_PREDICTION = date(2021, 8, 1) # date when the prediction should stop
                                                 # (pay attention to set one_dose_vaccination_forecasts
                                                 # and two_dose_vaccination_forecasts accordingly)
@@ -1285,7 +1285,7 @@ if __name__ == "__main__":
     plot_periods(plt, dates)
     plt.legend(loc='upper left')
     if SAVE_GRAPH:
-        plt.savefig('{}{}-vaccination.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
+        plt.savefig('{}{}-vaccination.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
 
 
@@ -1300,10 +1300,10 @@ if __name__ == "__main__":
 
 
     plt.figure(figsize=FIGURE_SIZE)
-    plt.title('Hospitalised Per Day')
+    plt.title('Hospitalized Per Day')
     t = StateEnum.DHDT
     u = ObsEnum.DHDT
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1329,10 +1329,10 @@ if __name__ == "__main__":
     plt.show()
 
     plt.figure(figsize=FIGURE_SIZE)
-    plt.title('Hospitalised')
+    plt.title('Hospitalized')
     t = StateEnum.HOSPITALIZED
     u = ObsEnum.NUM_HOSPITALIZED
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
 
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
@@ -1355,7 +1355,7 @@ if __name__ == "__main__":
     plot_periods(plt, dates)
     plt.legend(loc='upper left')
     if SAVE_GRAPH:
-        plt.savefig('{}{}-hospitalised.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
+        plt.savefig('{}{}-hospitalised.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
 
     plt.figure(figsize=FIGURE_SIZE)
@@ -1363,7 +1363,7 @@ if __name__ == "__main__":
     t = StateEnum.CRITICAL
     u = ObsEnum.NUM_CRITICAL
     #plt.plot(sres[:, t.value], label = str(t) + " (model)")
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1385,14 +1385,14 @@ if __name__ == "__main__":
     plot_periods(plt, dates)
     plt.legend(loc='upper left')
     if SAVE_GRAPH:
-        plt.savefig('{}{}-critical.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
+        plt.savefig('{}{}-critical.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT, dpi=400))
     plt.show()
 
     plt.figure(figsize=FIGURE_SIZE)
     plt.title('Fatalities')
     t = StateEnum.FATALITIES
     u = ObsEnum.NUM_FATALITIES
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1412,6 +1412,7 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-fatalities.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
@@ -1420,7 +1421,7 @@ if __name__ == "__main__":
     plt.title('Fatalities Per Day')
     t = StateEnum.DFDT
     u = ObsEnum.DFDT
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1440,6 +1441,7 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-dfdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
@@ -1448,7 +1450,7 @@ if __name__ == "__main__":
     plt.title('Number of People Tested Per Day')
     t = StateEnum.DTESTEDDT
     u = ObsEnum.NUM_TESTED
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1468,6 +1470,7 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-dtesteddt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()
@@ -1476,7 +1479,7 @@ if __name__ == "__main__":
     plt.title('Number of People Tested Positive Per Day')
     t = StateEnum.DTESTEDPOSDT
     u = ObsEnum.NUM_POSITIVE
-    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)")
+    plt.plot(rows[:, u.value], "--", label = str(u) + " (real)", c="orange")
     if ALL_SCENARIOS:
         plt.plot(range(last_fitted_day),
                      all_predictions[len(EXPERIMENTS), :last_fitted_day, t.value], label = str(t) + " (model)")
@@ -1496,6 +1499,7 @@ if __name__ == "__main__":
                      sres[last_fitted_day:, t.value], label = str(t) + " (prediction)")
 
     plot_periods(plt, dates)
+    plt.legend(loc='upper left')
     if SAVE_GRAPH:
         plt.savefig('{}{}-dtestedposdt.{}'.format(IMAGE_FOLDER, GRAPH_PREFIX, GRAPH_FORMAT))
     plt.show()

@@ -146,11 +146,16 @@ class StateFitEnum(Enum):
         return self.name.replace("_", " ").lower()
 
 
-STRINGS = { ObsEnum.NUM_POSITIVE : "num positive",
+STRINGS = { ObsEnum.NUM_POSITIVE : "Positive / day",
             ObsEnum.NUM_TESTED : "Tested / day",
+            ObsEnum.NUM_CRITICAL : "Critical",
+            ObsEnum.NUM_HOSPITALIZED : "Hospitalized",
+            ObsEnum.NUM_FATALITIES : "Fatalities",
             ObsEnum.CUMULATIVE_TESTED_POSITIVE : "Cumulative tested positive",
             ObsEnum.CUMULATIVE_TESTED : "Cumulative tested",
             ObsEnum.CUMULATIVE_HOSPITALIZATIONS : "Cumulative hospitalizations",
+            ObsEnum.DHDT: "Hospitalized / day",
+            ObsEnum.DFDT: "Fatalities / day",
             StateEnum.SYMPTOMATIQUE : "Symptomatic",
             StateEnum.ASYMPTOMATIQUE : "Asymptomatic",
             StateEnum.EXPOSED : "Exposed",
@@ -158,7 +163,11 @@ STRINGS = { ObsEnum.NUM_POSITIVE : "num positive",
             StateEnum.RECOVERED: "Recovered",
             StateEnum.HOSPITALIZED: "Hospitalized",
             StateEnum.CRITICAL: "Critical",
-            StateEnum.FATALITIES: "Fatalities"
+            StateEnum.FATALITIES: "Fatalities",
+            StateEnum.DTESTEDDT: "Tested / day",
+            StateEnum.DTESTEDPOSDT : "Positive / day",
+            StateEnum.DHDT: "Hospitalized / day",
+            StateEnum.DFDT: "Fatalities / day"
            }
 
 COLORS_DICT = {ObsEnum.NUM_POSITIVE: 'green',
